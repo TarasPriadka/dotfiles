@@ -9,12 +9,34 @@
 " is present. But we're including it here just in case this config file is
 " loaded some other way (e.g. saved as `foo`, and then Vim started with
 " `vim -u foo`).
+
+" Plugins
+
+let data_dir = has('nvim') ? stdpath('data') . '/site' : '~/.vim'
+if empty(glob(data_dir . '/autoload/plug.vim'))
+  silent execute '!curl -fLo '.data_dir.'/autoload/plug.vim --create-dirs  https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
+  autocmd VimEnter * PlugInstall --sync | source $MYVIMRC
+
+endif
+
+call plug#begin()
+    Plug 'vim-airline/vim-airline'
+    Plug 'junegunn/fzf', { 'jdo': { -> fzf#install() } }
+    Plug 'fatih/vim-go', { 'do': ':GoUpdateBinaries' }
+    Plug 'cespare/vim-toml', { 'branch': 'main' }
+    Plug 'tpope/vim-fugitive'
+    Plug 'tpope/vim-surround'
+    Plug 'preservim/nerdtree'
+call plug#end()
+
+
+
 set nocompatible
 
 " Turn on syntax highlighting.
 syntax on
 
-" Disable the default Vim startup message.
+" Disable the default Vim startup message.  
 set shortmess+=I
 
 " Show line numbers.
@@ -101,4 +123,3 @@ set foldmethod=indent
 set foldlevel=99
 nnoremap <space> za
 let g:SimpylFold_docstring_preview = 1
-
