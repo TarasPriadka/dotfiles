@@ -4,7 +4,10 @@ An attempt to simplify new computer setup with predefined vimrc, zshrc, and a sc
 
 ## Usage
 
-Run: 
+1. Clone this repo:
 ```
-sh setup.sh
+git clone https://github.com/TarasPriadka/setup_env.git
 ```
+
+2. Go to the cloned folder: `cd setup_env`
+3. Run `sh setup.sh`
