@@ -1,22 +1,4 @@
-unsetopt inc_append_history
-unsetopt share_history
-
-set -o vi
-
-# >>> conda initialize >>>
-# !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('/Users/taras/opt/anaconda3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
-if [ $? -eq 0 ]; then
-    eval "$__conda_setup"
-else
-    if [ -f "/Users/taras/opt/anaconda3/etc/profile.d/conda.sh" ]; then
-        . "/Users/taras/opt/anaconda3/etc/profile.d/conda.sh"
-    else
-        export PATH="/Users/taras/opt/anaconda3/bin:$PATH"
-    fi
-fi
-unset __conda_setup
-# <<< conda initialize <<<
+# ZSH config
 
 # confirmations, etc.) must go above this block; everything else may go below.
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
@@ -113,18 +95,14 @@ source $ZSH/oh-my-zsh.sh
 #   export EDITOR='mvim'
 # fi
 
+unsetopt inc_append_history
+unsetopt share_history
+
 source ~/powerlevel10k/powerlevel10k.zsh-theme
 source $ZSH/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
-
-[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
-
-if type rg &> /dev/null; then
-  export FZF_DEFAULT_COMMAND='rg --files'
-  export FZF_DEFAULT_OPTS='-m --height 50% --border'
-fi
 
 # -------------- SSH Agent startup --------------
 
@@ -153,10 +131,5 @@ fi
 
 # --------------------------------------------------
 
-alias pip=pip3
-alias vi=nvim
-alias gp="git push"
-alias gc="git commit"
-alias ga="git add"
 alias k="kubectl"
 

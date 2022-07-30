@@ -1,32 +1,31 @@
 #!/bin/sh
 
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    # install zsh
-    sudo apt install zsh -y
-elif [[ "$OSTYPE" == "darwin"* ]]; then
-    # install xcode command line utilities needed for homebrew
-    xcode-select --install
+GIT_REPO="https://raw.githubusercontent.com/TarasPriadka/setup_env/main"
+VIMRC_PATH="vimrc"
+ZSHRC_PATH="zshrc"
 
-    # install HomeBrew manager
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+cd $HOME
 
-    # install zsh
-    brew install zsh
-else
-    echo "Unknown system. Not sure how to setup. Exiting..."
-    exit 1
-fi
+# install code highlighting for zsh
+git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
 
-chsh -s $(which zsh)
+# install code completetion for zsh
+git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
+
+# install ag searcher
+apt-get install silversearcher-ag
+
+# install k9s
+sudo apt-get install k9s -y
 
 # Copy vimrc and zshrc files to home
-cp ./vimrc ~/.vimrc
-cp ./zshrc ~/.zshrc
+curl -O $GIT_REPO/$VIMRC_PATH 
+curl -O $GIT_REPO/$ZSHRC_PATH 
 
-git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ~/powerlevel10k
-echo 'source ~/powerlevel10k/powerlevel10k.zsh-theme' >>~/.zshrc
+cp  $VIMRC_PATH ~/.vimrc
+cp  $ZSHRC_PATH ~/.zshrc
 
-exec zsh
+rm $VIMRC_PATH
+rm $ZSHRC_PATH
 
-p10k configure
-
+source ~/.zshrc
