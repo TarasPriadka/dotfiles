@@ -21,7 +21,7 @@ p10k configure
 
 3. Run installation script from this repo
 ```
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/TarasPriadka/setup_env/main/setup.sh"
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/TarasPriadka/setup_env/main/setup.sh)"
 ```
 
 Useful links:
