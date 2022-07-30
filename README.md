@@ -24,5 +24,6 @@ p10k configure
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/TarasPriadka/setup_env/main/setup.sh)"
 ```
 
-Useful links:
+Useful Links and Tips:
 1. Setup Iterm2 skips: `https://apple.stackexchange.com/questions/136928/using-alt-cmd-right-left-arrow-in-iterm`
+2. Check Unix system version: `uname -r`

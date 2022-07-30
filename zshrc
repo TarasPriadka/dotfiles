@@ -99,7 +99,7 @@ unsetopt inc_append_history
 unsetopt share_history
 
 source ~/powerlevel10k/powerlevel10k.zsh-theme
-source $ZSH/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+source $ZSH/custom/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
@@ -132,4 +132,4 @@ fi
 # --------------------------------------------------
 
 alias k="kubectl"
-
+alias python="python3"
