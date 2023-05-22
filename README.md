@@ -24,6 +24,32 @@ p10k configure
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/TarasPriadka/setup_env/main/setup.sh)"
 ```
 
-Useful Links and Tips:
+## Useful Links and Tips:
 1. Setup Iterm2 skips: `https://apple.stackexchange.com/questions/136928/using-alt-cmd-right-left-arrow-in-iterm`
 2. Check Unix system version: `uname -r`
+
+## Setup Github
+- Setup SSH Keys
+  1. `ssh-keygen -t ed25519 -C "your_email@example.com"`
+  2. `touch ~/.ssh/config`
+  3. Add key to the config: `vim ~/.ssh/config`
+  ```
+  Host github.com
+  AddKeysToAgent yes
+  UseKeychain yes
+  IdentityFile ~/.ssh/id_ed25519
+  ```
+
+## Apps to get
+- [Spotify](https://download.scdn.co/SpotifyInstaller.zip)
+- [Firefox](https://www.mozilla.org/en-US/firefox/mac/)/Arc
+- [VS Code](https://code.visualstudio.com/docs?dv=osx)
+- [Raycast](https://www.raycast.com/#)
+- [Iterm2](https://iterm2.com/downloads/stable/latest)
+- [Rectangle](https://github.com/rxhanson/Rectangle/releases/download/v0.68/Rectangle0.68.dmg)
+- [Slack](https://slack.com/downloads/instructions/mac)
+- [Hidden Bar](https://apps.apple.com/us/app/hidden-bar/id1452453066?mt=12)
+- [Zoom](https://zoom.us/download)
+- [Shottr](https://shottr.cc/)
+- [Notion](https://www.notion.so/desktop/apple-silicon/download)
+
