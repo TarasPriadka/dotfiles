@@ -29,7 +29,7 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/TarasPriadka/setup_env/mai
 2. Check Unix system version: `uname -r`
 
 ## Setup Github
-- Setup SSH Keys
+- Setup SSH Key
   1. `ssh-keygen -t ed25519 -C "your_email@example.com"`
   2. `touch ~/.ssh/config`
   3. Add key to the config: `vim ~/.ssh/config`
@@ -39,6 +39,9 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/TarasPriadka/setup_env/mai
   UseKeychain yes
   IdentityFile ~/.ssh/id_ed25519
   ```
+  4. Go to the Github settings and paste in the public key that you have generated
+
+- Setup GPG Key
 
 ## Apps to get
 - [Spotify](https://download.scdn.co/SpotifyInstaller.zip)
