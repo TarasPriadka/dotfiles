@@ -32,7 +32,7 @@ ZSH_THEME="robbyrussell"
 
 # Uncomment one of the following lines to change the auto-update behavior
 # zstyle ':omz:update' mode disabled  # disable automatic updates
-# zstyle ':omz:update' mode auto      # update automatically without asking
+zstyle ':omz:update' mode auto      # update automatically without asking
 # zstyle ':omz:update' mode reminder  # just remind me to update when it's time
 
 # Uncomment the following line to change how often to auto-update (in days).
@@ -85,15 +85,12 @@ source $ZSH/oh-my-zsh.sh
 
 # export MANPATH="/usr/local/man:$MANPATH"
 
-# You may need to manually set your language environment
-# export LANG=en_US.UTF-8
-
 # Preferred editor for local and remote sessions
-# if [[ -n $SSH_CONNECTION ]]; then
-#   export EDITOR='vim'
-# else
-#   export EDITOR='mvim'
-# fi
+if [[ -n $SSH_CONNECTION ]]; then
+  export EDITOR='vim'
+else
+  export EDITOR='mvim'
+fi
 
 unsetopt inc_append_history
 unsetopt share_history
@@ -133,3 +130,23 @@ fi
 
 alias k="kubectl"
 alias python="python3"
+
+# >>> conda initialize >>>
+# !! Contents within this block are managed by 'conda init' !!
+__conda_setup="$('/Users/taras/miniconda3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
+if [ $? -eq 0 ]; then
+    eval "$__conda_setup"
+else
+    if [ -f "/Users/taras/miniconda3/etc/profile.d/conda.sh" ]; then
+        . "/Users/taras/miniconda3/etc/profile.d/conda.sh"
+    else
+        export PATH="/Users/taras/miniconda3/bin:$PATH"
+    fi
+fi
+unset __conda_setup
+# <<< conda initialize <<<
+
+export PATH="$HOME/go/bin:$PATH"
+export GOPATH="$HOME/go"
+
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
