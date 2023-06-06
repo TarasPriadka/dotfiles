@@ -130,23 +130,3 @@ fi
 
 alias k="kubectl"
 alias python="python3"
-
-# >>> conda initialize >>>
-# !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('/Users/taras/miniconda3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
-if [ $? -eq 0 ]; then
-    eval "$__conda_setup"
-else
-    if [ -f "/Users/taras/miniconda3/etc/profile.d/conda.sh" ]; then
-        . "/Users/taras/miniconda3/etc/profile.d/conda.sh"
-    else
-        export PATH="/Users/taras/miniconda3/bin:$PATH"
-    fi
-fi
-unset __conda_setup
-# <<< conda initialize <<<
-
-export PATH="$HOME/go/bin:$PATH"
-export GOPATH="$HOME/go"
-
-[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
