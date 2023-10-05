@@ -56,3 +56,7 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/TarasPriadka/setup_env/mai
 - [Shottr](https://shottr.cc/)
 - [Notion](https://www.notion.so/desktop/apple-silicon/download)
 
+## Extensions
+- [uBlock Origin](https://chrome.google.com/webstore/detail/ublock-origin/cjpalhdlnbpafiamejdnhcphjbkeiagm)
+- [Vimium-C](https://chrome.google.com/webstore/detail/vimium-c-all-by-keyboard/hfjbmagddngcpeloejdejnfgbamkjaeg)
+- [I still don't care about cookies](https://chrome.google.com/webstore/detail/i-still-dont-care-about-c/edibdbjcniadpccecjdfdjjppcpchdlm)
