@@ -27,6 +27,7 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/TarasPriadka/setup_env/mai
 ## Useful Links and Tips:
 1. Setup Iterm2 skips: `https://apple.stackexchange.com/questions/136928/using-alt-cmd-right-left-arrow-in-iterm`
 2. Check Unix system version: `uname -r`
+3. VS Code hold and repeat keys command: `defaults write com.microsoft.VSCode ApplePressAndHoldEnabled -bool false`
 
 ## Setup Github
 - Setup SSH Key
@@ -42,7 +43,6 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/TarasPriadka/setup_env/mai
   4. Go to the Github settings and paste in the public key that you have generated
 
 - Setup GPG Key
-- VS Code hold and repeat keys command: `defaults write com.microsoft.VSCode ApplePressAndHoldEnabled -bool false`
 
 ## Apps to get
 - [Spotify](https://download.scdn.co/SpotifyInstaller.zip)
