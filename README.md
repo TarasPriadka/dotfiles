@@ -30,7 +30,7 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/TarasPriadka/setup_env/mai
 3. VS Code hold and repeat keys command: `defaults write com.microsoft.VSCode ApplePressAndHoldEnabled -bool false`
 
 ## Setup Github
-- Setup SSH Key
+- [Setup SSH Key](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent)
   1. `ssh-keygen -t ed25519 -C "your_email@example.com"`
   2. `touch ~/.ssh/config`
   3. Add key to the config: `vim ~/.ssh/config`
