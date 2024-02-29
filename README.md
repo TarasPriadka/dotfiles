@@ -50,12 +50,17 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/TarasPriadka/setup_env/mai
 - [VS Code](https://code.visualstudio.com/docs?dv=osx)
 - [Raycast](https://www.raycast.com/#)
 - [Iterm2](https://iterm2.com/downloads/stable/latest)
-- [Rectangle](https://github.com/rxhanson/Rectangle/releases/download/v0.68/Rectangle0.68.dmg)
 - [Slack](https://slack.com/downloads/instructions/mac)
-- [Hidden Bar](https://apps.apple.com/us/app/hidden-bar/id1452453066?mt=12)
 - [Zoom](https://zoom.us/download)
-- [Shottr](https://shottr.cc/)
 - [Notion](https://www.notion.so/desktop/apple-silicon/download)
+
+## Mac Extensions
+- [Flycut]
+- [Rectangle](https://github.com/rxhanson/Rectangle/releases/download/v0.68/Rectangle0.68.dmg)
+- [Hidden Bar](https://apps.apple.com/us/app/hidden-bar/id1452453066?mt=12)
+- [Shottr](https://shottr.cc/)
+
+
 
 ## Extensions
 - [uBlock Origin](https://chrome.google.com/webstore/detail/ublock-origin/cjpalhdlnbpafiamejdnhcphjbkeiagm)
