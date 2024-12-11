@@ -18,8 +18,8 @@ git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:
 git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
 
 # Copy vimrc and zshrc files to home
-curl -O $GIT_REPO/$VIMRC_PATH 
-curl -O $GIT_REPO/$ZSHRC_PATH 
+curl -O $GIT_REPO/$VIMRC_PATH
+curl -O $GIT_REPO/$ZSHRC_PATH
 
 cp  $VIMRC_PATH ~/.vimrc
 cp  $ZSHRC_PATH ~/.zshrc
