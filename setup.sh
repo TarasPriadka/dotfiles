@@ -26,3 +26,6 @@ cp  $ZSHRC_PATH ~/.zshrc
 
 rm $VIMRC_PATH
 rm $ZSHRC_PATH
+
+# Install ripgrep
+brew install ripgrep
