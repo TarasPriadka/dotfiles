@@ -29,3 +29,7 @@ rm $ZSHRC_PATH
 
 # Install ripgrep
 brew install ripgrep
+brew install bat
+alias cat=bat
+brew install exa
+alias ls=exa
