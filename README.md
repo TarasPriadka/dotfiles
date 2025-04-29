@@ -43,7 +43,13 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/TarasPriadka/setup_env/mai
   4. Go to the Github settings and paste in the public key that you have generated
 
 - Setup GPG Key
-
+  1. Enable commit signing with `git config --global commit.gpgsign true`
+  2. Add `export GPG_TTY=$(tty)` to the `.zshrc`
+  3. Run `gpg --full-generate-key` with defaults
+  4. Run `gpg --list-secret-keys --keyid-format=long` and copy id after `rsa3072/`
+  5. Print key with `gpg --armor --export`
+  6. Add to Github
+     
 ## Apps to get
 - [Spotify](https://download.scdn.co/SpotifyInstaller.zip)
 - [Firefox](https://www.mozilla.org/en-US/firefox/mac/)/Arc
