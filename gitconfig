@@ -50,3 +50,6 @@
   abbrevCommit = true
 [color "branch"]
   upstream = cyan
+[pager]
+  diff = less -FX
+  log = less -FX
