@@ -66,6 +66,52 @@ zstyle ':omz:update' mode auto      # update automatically without asking
 # or set a custom format using the strftime function format specifications,
 # see 'man strftime' for details.
 # HIST_STAMPS="mm/dd/yyyy"
+#
+
+# Save up to 50000 entries in history file
+# SAVEHIST=50000
+# # Keep 50000 lines of history within the shell
+# HISTSIZE=50000
+#
+# # Add timestamps to history
+# setopt EXTENDED_HISTORY
+# # Append history to the history file (rather than overwrite)
+# setopt APPEND_HISTORY
+# # Add commands as they are typed, not at shell exit
+# setopt INC_APPEND_HISTORY
+# # Share history across multiple zsh sessions
+# setopt SHARE_HISTORY
+# # Expire duplicates first
+# setopt HIST_EXPIRE_DUPS_FIRST
+# # Do not store duplications
+# setopt HIST_IGNORE_DUPS
+# # Ignore duplicates when searching
+# setopt HIST_FIND_NO_DUPS
+# # Remove blank lines from history
+# setopt HIST_REDUCE_BLANKS
+
+#Save up to 50000 entries in history file
+SAVEHIST=50000
+# Keep 50000 lines of history within the shell
+HISTSIZE=50000
+
+# Add timestamps to history
+setopt EXTENDED_HISTORY
+# Append history to the history file (rather than overwrite)
+setopt APPEND_HISTORY
+# Add commands as they are typed, not at shell exit
+setopt INC_APPEND_HISTORY
+# Share history across multiple zsh sessions
+setopt SHARE_HISTORY
+# Expire duplicates first
+setopt HIST_EXPIRE_DUPS_FIRST
+# Do not store duplications
+setopt HIST_IGNORE_DUPS
+# Ignore duplicates when searching
+setopt HIST_FIND_NO_DUPS
+# Remove blank lines from history
+setopt HIST_REDUCE_BLANKS
+
 
 # Would you like to use another custom folder than $ZSH/custom?
 # ZSH_CUSTOM=/path/to/new-custom-folder
@@ -75,6 +121,7 @@ zstyle ':omz:update' mode auto      # update automatically without asking
 # Custom plugins may be added to $ZSH_CUSTOM/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 plugins=(git zsh-autosuggestions web-search copyfile copypath zsh-syntax-highlighting)
+
 
 source $ZSH/oh-my-zsh.sh
 
@@ -91,14 +138,20 @@ fi
 
 
 source ~/powerlevel10k/powerlevel10k.zsh-theme
+source /opt/gml_dev/gmlenv.inc
+source <(/home/taraspriadka/.fzf/bin/fzf --zsh)
 
-# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
-[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+
+if [ -z $TERMINALORIGIN ]; then
+    # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
+    [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+fi
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
-unsetopt inc_append_history
-unsetopt share_history
+
+# unsetopt inc_append_history
+# unsetopt share_history
 
 # -------------- SSH Agent startup --------------
 
@@ -107,7 +160,7 @@ SSH_ENV="$HOME/.ssh/agent-environment"
 function start_agent {
     echo "Initialising new SSH agent..."
     /usr/bin/ssh-agent | sed 's/^echo/#echo/' > "${SSH_ENV}"
-    echo succeeded
+    # echo succeeded
     chmod 600 "${SSH_ENV}"
     . "${SSH_ENV}" > /dev/null
     /usr/bin/ssh-add;
@@ -127,5 +180,22 @@ fi
 
 # --------------------------------------------------
 
+# -- pyenv --#
+
+export PYENV_ROOT="$HOME/.pyenv"
+[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init - bash)"
+eval "$(pyenv virtualenv-init -)"
+
+# -- pyenv --
+
 alias k="kubectl"
 alias python="python3"
+alias gc="git checkout"
+alias gr="git rebase"
+alias gb="git branch"
+alias gp="git push"
+alias claer="clear"
+
+
+export GPG_TTY=$(tty)
