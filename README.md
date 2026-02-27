@@ -28,6 +28,7 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/TarasPriadka/setup_env/mai
 1. Setup Iterm2 skips: `https://apple.stackexchange.com/questions/136928/using-alt-cmd-right-left-arrow-in-iterm`
 2. Check Unix system version: `uname -r`
 3. VS Code hold and repeat keys command: `defaults write com.microsoft.VSCode ApplePressAndHoldEnabled -bool false`
+4. Use `git update-index --skip-worktree FILE` to keep file changes out of the git worktree. Useful if you change some configs locally, but don't want to update upstream. 
 
 ## Setup Github
 - [Setup SSH Key](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent)
