@@ -1,51 +1,48 @@
 [commit]
   verbose = true
-	gpgsign = true
+  gpgsign = true
 [core]
-	pager = cat
+  pager = cat
   excludesfile = ~/.gitignore
 [alias]
   aliases = !git config --get-regexp alias | sed -re 's/alias\\.(\\S*)\\s(.*)$/\\1 = \\2/g'
-  # Display tree-like log, because default log is a pain…
   lg = log --graph --date=relative --pretty=tformat:'%Cred%h%Creset -%C(auto)%d%Creset %s %Cgreen(%an %ad)%Creset'
   oops = commit --amend --no-edit
-  # Edit last commit message
   reword = commit --amend
-  # Undo last commit but keep changed files in stage
   uncommit = reset --soft HEAD~1
+  cherry-branch = "!f() { \n    if [ $# -eq 0 ]; then \n        echo \"Usage: git cherry-branch <commit-hash> [branch-name]\"; \n        return 1; \n    fi; \n    COMMIT=$1; \n    BRANCH=${2:-cherry-pick-$(echo $COMMIT | cut -c1-8)}; \n    echo \"Checking out main...\"; \n    git checkout main && \n    echo \"Creating branch $BRANCH...\"; \n    git checkout -b $BRANCH && \n    echo \"Cherry-picking $COMMIT...\"; \n    git cherry-pick $COMMIT; \n}; f"
 [user]
-	name = Taras Priadka
-	email = taraspriadka@gimletlabs.ai
+  signingkey = ~/.ssh/ssh_sign
 [fetch]
-    prune = true
-    pruneTags = true
-    all = true
+  prune = true
+  pruneTags = true
+  all = true
 [push]
-    default = simple
-    autoSetupRemote = true
-    followTags = true
+  default = current
+  autoSetupRemote = true
+  followTags = true
 [pull]
-    rebase = true
+  rebase = true
 [rebase]
-    autoSquash = true
-    autoStash = true
-    updateRefs = true
+  autoSquash = true
+  autoStash = true
+  updateRefs = true
 [branch]
-    sort = -committerdate
+  sort = -committerdate
 [tag]
-    sort = version:refname
+  sort = version:refname
 [init]
-    defaultBranch = main
+  defaultBranch = main
 [diff]
-    algorithm = histogram
-    colorMoved = plain
-    mnemonicPrefix = true
-    renames = true
+  algorithm = histogram
+  colorMoved = plain
+  mnemonicPrefix = true
+  renames = true
 [help]
-    autocorrect = prompt
+  autocorrect = prompt
 [rerere]
-    enabled = true
-    autoupdate = true
+  enabled = true
+  autoupdate = true
 [log]
   abbrevCommit = true
 [color "branch"]
@@ -53,3 +50,5 @@
 [pager]
   diff = less -FX
   log = less -FX
+[gpg]
+  format = ssh
