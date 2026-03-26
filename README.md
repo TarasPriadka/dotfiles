@@ -1,7 +1,5 @@
 # Setup Env
 
-An attempt to simplify new computer setup with predefined vimrc, zshrc, and a script to set everything up.
-
 ## Install (Linux)
 
 ```bash
@@ -9,7 +7,7 @@ curl -fsSL https://raw.githubusercontent.com/TarasPriadka/dotfiles/main/setup.sh
 ```
 
 The script will:
-- Install system packages: zsh, tmux, fzf, ripgrep, bat, vim, tig, pyenv build deps
+- Install system packages
 - Install fzf (from git), pyenv, oh-my-zsh, zsh plugins
 - Create `~/code/`
 - Download and place zshrc, gitconfig, vimrc, tmux.conf
