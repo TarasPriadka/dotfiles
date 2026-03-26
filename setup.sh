@@ -31,7 +31,7 @@ fi
 if [ ! -d "$HOME/.fzf" ]; then
     info "Installing fzf from git..."
     git clone --depth 1 https://github.com/junegunn/fzf.git "$HOME/.fzf"
-    "$HOME/.fzf/install"
+    "$HOME/.fzf/install" --all < /dev/tty
     success "Installed fzf"
 else
     info "fzf already installed, skipping"
@@ -79,8 +79,8 @@ chmod 700 "$HOME/.ssh"
 
 # Prompt for email to embed in key comments (used later for git config too)
 echo ""
-read -r -p "Enter your email (for SSH key comments and git config): " USER_EMAIL
-read -r -p "Enter your full name (for git config): " USER_NAME
+read -r -p "Enter your email (for SSH key comments and git config): " USER_EMAIL </dev/tty
+read -r -p "Enter your full name (for git config): " USER_NAME </dev/tty
 
 if [ ! -f "$HOME/.ssh/id_ed25519" ]; then
     info "Generating SSH auth key (~/.ssh/id_ed25519)..."
