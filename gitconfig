@@ -10,6 +10,7 @@
   oops = commit --amend --no-edit
   reword = commit --amend
   uncommit = reset --soft HEAD~1
+  nuke = !git reset --hard HEAD && git clean -fd
   cherry-branch = "!f() { \n    if [ $# -eq 0 ]; then \n        echo \"Usage: git cherry-branch <commit-hash> [branch-name]\"; \n        return 1; \n    fi; \n    COMMIT=$1; \n    BRANCH=${2:-cherry-pick-$(echo $COMMIT | cut -c1-8)}; \n    echo \"Checking out main...\"; \n    git checkout main && \n    echo \"Creating branch $BRANCH...\"; \n    git checkout -b $BRANCH && \n    echo \"Cherry-picking $COMMIT...\"; \n    git cherry-pick $COMMIT; \n}; f"
 [user]
   signingkey = ~/.ssh/ssh_sign

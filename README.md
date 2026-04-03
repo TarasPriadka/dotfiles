@@ -16,6 +16,17 @@ The script will:
 
 After running, add both keys to GitHub and run `exec zsh`.
 
+## Sync Configs Only
+
+Already have the tools installed and just want to pull the latest configs?
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TarasPriadka/dotfiles/main/zshrc    -o ~/.zshrc
+curl -fsSL https://raw.githubusercontent.com/TarasPriadka/dotfiles/main/gitconfig -o ~/.gitconfig
+curl -fsSL https://raw.githubusercontent.com/TarasPriadka/dotfiles/main/vimrc     -o ~/.vimrc
+curl -fsSL https://raw.githubusercontent.com/TarasPriadka/dotfiles/main/tmux.conf -o ~/.tmux.conf
+```
+
 ## Useful Links and Tips:
 1. Setup Iterm2 skips: `https://apple.stackexchange.com/questions/136928/using-alt-cmd-right-left-arrow-in-iterm`
 2. Check Unix system version: `uname -r`
