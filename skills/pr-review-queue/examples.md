@@ -1,25 +1,26 @@
 # Queue behavior examples
 
-These scenarios describe the queue workflow. Use the overview skill's examples
+These scenarios describe the queue workflow. Use `pr-comprehension`'s examples
 for explanation quality; this skill adds no second report format.
 
 ## Prepare a batch
 
 Request: "Prepare #123 and #124 so I can review them later."
 
-Resolve both PRs in the current repository, use `pr-overview` for each, and save
-their overviews, evidence, and state under the main checkout's
-`.pr-review-queue/`. Return the index
-link and any preparation limitations. Do not post comments or launch code
-reviewers. If #124 depends on #123, explain that relationship and compare #124
+Resolve both PRs in the current repository, use `pr-comprehension` for each,
+and save their explanations, evidence, and state under the main checkout's
+`.pr-review-queue/`. Return the index link and any preparation limitations.
+Do not post comments or launch code reviewers. If #124 depends on #123,
+explain that relationship and compare #124
 against its own base.
 
 ## A single immediate explanation
 
 Request: "Explain #123."
 
-Use `pr-overview` and return the explanation in the conversation. Do not create
-or refresh a queue merely because one already exists. "Queue #123 for tomorrow"
+Use `pr-comprehension` and return the explanation in the conversation. Do not
+create or refresh a queue merely because one already exists. "Queue #123 for
+tomorrow"
 does request a saved entry, even though it names only one PR.
 
 ## Prepare from a linked worktree
@@ -45,9 +46,10 @@ queue. "Add #123 again" explicitly creates a new entry.
 ## Refresh without accumulating history
 
 PR #124's head stays the same, but its base changes. Recompute the comparison and
-refresh its overview through `pr-overview`; replace the generated files after
-successful preparation. Do not append a revision archive. If its saved overview
-contains user edits, preserve them and report that replacement needs direction.
+refresh its explanation through `pr-comprehension`; replace the generated files
+after successful preparation. Do not append a revision archive. If the saved
+explanation contains user edits, preserve them and report that replacement
+needs direction.
 
 If GitHub is unavailable, keep the last explanation labeled with its original
 revision and report that freshness could not be verified. Other ready entries
@@ -56,7 +58,7 @@ remain usable.
 ## Check the workflow
 
 Try the scenarios above in a disposable checkout when changing queue behavior.
-Verify that single overviews create no files, all worktrees use the main
+Verify that single explanations create no files, all worktrees use the main
 checkout's queue, batch output is ignored by Git there,
 deleted entries stay absent after refresh and worker completion, and changed
 bases invalidate cached understanding. A ready queue entry is preparation, not

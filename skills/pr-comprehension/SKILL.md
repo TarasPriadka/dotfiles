@@ -1,18 +1,20 @@
 ---
-name: pr-overview
+name: pr-comprehension
 description: >
-  Explain a pull request, branch, or local diff through its motivation, central
-  concepts, before/after behavior, and scope. Use when someone asks for a PR
-  overview or wants to understand a change. Build a source-backed component
-  map and representative trace so the reader can focus their code inspection.
-  Post a PR comment only when the user explicitly asks to publish it.
+  Help someone comprehend one pull request, branch, or diff. Trigger when the
+  user says "help me comprehend this PR", asks to understand a PR, or requests
+  an explanation of a change. Build a source-backed mental model of its need,
+  before/after behavior, concrete flow, and limits, with links to the code.
+  Publish a PR comment only when the user explicitly asks.
 ---
 
-# PR overview
+# PR comprehension
 
-Help an engineer unfamiliar with a change understand why it exists, how it works,
-and where to inspect it. Explain relationships and behavior, not just a list of
-edited files.
+Help an engineer unfamiliar with a change understand why it exists, how it
+works, and where to inspect it. The reader should be able to retell the need,
+follow a representative input through the change, and predict its result
+without reconstructing the diff. Explain relationships and behavior rather
+than listing edited files.
 
 ## Scope
 
@@ -22,12 +24,12 @@ edited files.
   branch's PR or compare it against its actual base.
 - Honor requested depth. Start with a bounded read; inspect more when an
   important connection remains unsupported.
-- Return the overview in the conversation. Post a PR comment only when the user
-  explicitly asks. Do not create report or evidence files.
+- Return the explanation in the conversation. Post a PR comment only when the
+  user explicitly asks. Do not create report or evidence files.
 - Do not edit code, stage, commit, or switch branches over the user's work.
 
 Read [operations.md](operations.md) before gathering PR data. Read
-[examples.md](examples.md) before writing the first overview in a run.
+[examples.md](examples.md) before writing the first explanation in a run.
 
 ## Establish the change
 
@@ -67,7 +69,7 @@ when the central behavior is supported and consequential unknowns are explicit.
 
 ## Map and trace the structure
 
-Put one compact structural visual at the center of the overview. Choose a form
+Put one compact structural visual at the center of the explanation. Choose a form
 that matches the relationship:
 
 | Relationship | Useful form |
@@ -106,7 +108,7 @@ source link; annotate state changes rather than every line of syntax.
 
 Use this order unless the user asks for another format:
 
-1. `## Agentic Overview`.
+1. `## PR Comprehension`.
 2. One or two sentences stating the need, old limitation, and contribution.
 3. The structural visual.
 4. A short trace or notes for behavior, prerequisites, or scope the visual
@@ -135,9 +137,9 @@ the examined revision, stack context if needed, and material limitations.
 
 ## Publish only when requested
 
-A request for an overview produces a draft in the conversation. If the user
-explicitly requests direct publication, finish and verify the draft, recheck
-the PR and comparison revisions, then post it as a regular PR comment. Never
+A request to comprehend a PR produces an explanation in the conversation. If
+the user explicitly requests direct publication, finish and verify the draft,
+recheck the PR and comparison revisions, then post it as a regular PR comment. Never
 replace the PR title or body. Use a temporary body file for CLI transport so
 Markdown stays intact, then remove that file. Return the comment URL.
 

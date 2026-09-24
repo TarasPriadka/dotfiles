@@ -1,8 +1,8 @@
-# PR overview examples
+# PR comprehension examples
 
 These examples show how to explain structure and scope. They are hypothetical.
-Use links to inspected code in real overviews; never invent destinations.
-Each delivered overview starts with `## Agentic Overview`.
+Use links to inspected code in real explanations; never invent destinations.
+Each delivered explanation starts with `## PR Comprehension`.
 
 ## Configuration preparing later work
 
@@ -50,7 +50,7 @@ The labels identify the same components in the trace: start with `r7` tracked
 by G. Q accepts it and W receives it; G keeps the record until the completion
 event returns. When G replies, the record is removed. If Q rejects admission,
 the outcome depends on the inspected error path; do not infer cleanup from the
-successful completion path. In a real overview, link the admission, completion,
+successful completion path. In a real explanation, link the admission, completion,
 and rejection code that establishes these transitions. Use this much detail
 only when the boundary and return path matter to the change.
 
