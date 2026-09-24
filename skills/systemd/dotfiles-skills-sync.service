@@ -1,0 +1,6 @@
+[Unit]
+Description=Update personal Codex skills from dotfiles
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/dotfiles-skills-sync

@@ -124,6 +124,13 @@ if [ "$SHELL" != "$(which zsh)" ]; then
     success "Default shell changed to zsh"
 fi
 
+# ── Personal Codex skills ─────────────────────────────────────────────────
+if [ -f "$HOME/code/dotfiles/skills/install.sh" ]; then
+    bash "$HOME/code/dotfiles/skills/install.sh"
+else
+    warn "Clone dotfiles to ~/code/dotfiles, then run skills/install.sh to install personal skills"
+fi
+
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}════════════════════════════════════════════════════${NC}"

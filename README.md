@@ -16,6 +16,25 @@ The script will:
 
 After running, add both keys to GitHub and run `exec zsh`.
 
+## Personal Codex skills
+
+This repo keeps personal skills under `skills/<skill-name>/SKILL.md`. From a
+checkout at `~/code/dotfiles`, install them with:
+
+```bash
+bash skills/install.sh
+```
+
+The installer links each skill into `~/.agents/skills/` and enables an hourly
+user-level systemd timer. The timer runs `git pull --ff-only` in this checkout,
+so a divergent branch or conflicting local edits stop the update instead of
+being overwritten. Codex discovers the linked skills from any local repo. If
+an updated skill does not appear immediately, restart Codex.
+
+`setup.sh` also runs the skill installer when this checkout is present. If you
+run setup from the raw URL on a new machine, clone this repo to `~/code/dotfiles`
+after configuring GitHub access, then run the installer once.
+
 ## Sync Configs Only
 
 Already have the tools installed and just want to pull the latest configs?
