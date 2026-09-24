@@ -125,11 +125,9 @@ if [ "$SHELL" != "$(which zsh)" ]; then
 fi
 
 # ── Personal Codex skills ─────────────────────────────────────────────────
-if [ -f "$HOME/code/dotfiles/skills/install.sh" ]; then
-    bash "$HOME/code/dotfiles/skills/install.sh"
-else
-    warn "Clone dotfiles to ~/code/dotfiles, then run skills/install.sh to install personal skills"
-fi
+info "Installing personal Codex skills..."
+curl -fsSL "$RAW_BASE/skills/install.sh" | bash
+success "Personal Codex skills installed"
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""

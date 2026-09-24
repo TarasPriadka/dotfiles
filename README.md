@@ -18,22 +18,22 @@ After running, add both keys to GitHub and run `exec zsh`.
 
 ## Personal Codex skills
 
-This repo keeps personal skills under `skills/<skill-name>/SKILL.md`. From a
-checkout at `~/code/dotfiles`, install them with:
+This repo keeps personal skills under `skills/<skill-name>/SKILL.md`. Install
+them on any Linux machine without cloning the repo:
 
 ```bash
-bash skills/install.sh
+curl -fsSL https://raw.githubusercontent.com/TarasPriadka/dotfiles/main/skills/install.sh | bash
 ```
 
-The installer links each skill into `~/.agents/skills/` and enables an hourly
-user-level systemd timer. The timer runs `git pull --ff-only` in this checkout,
-so a divergent branch or conflicting local edits stop the update instead of
-being overwritten. Codex discovers the linked skills from any local repo. If
-an updated skill does not appear immediately, restart Codex.
+The installer downloads the public repo archive, keeps only its skill folders
+under `~/.local/share/dotfiles-skills/`, and links them into
+`~/.agents/skills/`. An hourly user-level systemd timer downloads a fresh
+archive and updates that cache. It does not need a Git checkout. Existing
+skills with the same names are left alone unless they were installed by this
+script. Codex discovers the linked skills from any local repo. If an updated
+skill does not appear immediately, restart Codex.
 
-`setup.sh` also runs the skill installer when this checkout is present. If you
-run setup from the raw URL on a new machine, clone this repo to `~/code/dotfiles`
-after configuring GitHub access, then run the installer once.
+The main `setup.sh` downloads and runs this installer as part of setup.
 
 ## Sync Configs Only
 
