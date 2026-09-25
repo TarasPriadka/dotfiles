@@ -42,6 +42,8 @@ The main `setup.sh` downloads and runs this installer as part of setup.
 GIMLET coin. Both are Python 3.9+ programs with no third party packages. Their
 source lives in `programs/` and the Linux setup script installs them in
 `~/.local/bin/`. Open a new shell after setup so the commands are on `PATH`.
+`night` starts with its status and controls hidden; press `i` to show them or
+`h` for help.
 
 To install or update only these programs:
 

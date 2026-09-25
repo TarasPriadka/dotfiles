@@ -52,7 +52,7 @@ class Atmosphere:
     eco: bool = False
     paused: bool = False
     help: bool = False
-    hud: bool = True
+    hud: bool = False
 
 
 class Scene:
@@ -241,7 +241,7 @@ class Scene:
         if a.help:
             width = min(44, self.w)
             x, y = (self.w - width) // 2, max(0, (self.h - len(HELP) - 4) // 2)
-            lines = HELP + ("i  hide/show footer", f"Automatic trains: {'on' if a.trains else 'off'}",)
+            lines = HELP + ("i  show/hide footer", f"Automatic trains: {'on' if a.trains else 'off'}",)
             for dy, row in enumerate(("",) + lines + ("",)):
                 self.put(cells, x, y + dy, " " * width, 0)
                 self.put(cells, x + 2, y + dy, row[:width - 4], 10 if dy != 1 else 8)
