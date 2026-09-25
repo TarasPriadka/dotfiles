@@ -1,0 +1,377 @@
+#!/usr/bin/env python3
+"""A quiet, dependency-free night by the railway. Python 3.9+, Unix terminal."""
+from __future__ import annotations
+
+import argparse
+import math
+import os
+import random
+import select
+import shutil
+import signal
+import sys
+import termios
+import time
+import tty
+from dataclasses import dataclass
+
+ESC = "\x1b["
+# sky, distant hills, near hills, trees, water, rain, stars, moon, amber, rail, text, fog
+PALETTES = (
+    ("Midnight", (7, 12, 24), ((7,12,24), (35,47,70), (26,39,54), (17,31,39),
+     (38,65,81), (67,99,126), (142,167,190), (218,226,214), (222,176,104),
+     (71,87,96), (151,170,184), (63,78,93))),
+    ("Indigo", (12,10,27), ((12,10,27), (49,43,76), (35,31,57), (24,24,39),
+     (58,55,91), (100,94,143), (181,165,213), (236,220,219), (230,167,123),
+     (88,78,110), (182,169,198), (83,72,106))),
+)
+RAIN = ("off", "mist", "rain", "downpour")
+WIND = ("west", "still", "east")
+PRESETS = {"1": (0, 1, 0, True), "2": (2, 2, 1, True), "3": (3, 0, 2, False)}
+HELP = (
+    "N I G H T   /   atmosphere",
+    "",
+    "1  clear     2  rainy     3  storm",
+    "r  rain      w  wind      f  fog",
+    "m  moon      s  stars     b  palette",
+    "t  send train    a  automatic trains",
+    "e  eco (6 FPS)   Space  pause",
+    "h / ?  help     q / Esc  leave",
+)
+
+
+@dataclass
+class Atmosphere:
+    rain: int = 2
+    wind: int = 2
+    fog: int = 1
+    stars: bool = True
+    moon: bool = True
+    trains: bool = True
+    palette: int = 0
+    eco: bool = False
+    paused: bool = False
+    help: bool = False
+    hud: bool = True
+
+
+class Scene:
+    def __init__(self, width=100, height=32, seed=17, atmosphere=None):
+        self.seed = seed
+        self.rng = random.Random(seed)
+        self.a = atmosphere or Atmosphere()
+        self.time = 0.0
+        self.train_x = None
+        self.train_direction = 1
+        self.next_train = 2.0
+        self.meteor = None
+        self.next_meteor = self.rng.uniform(6, 12)
+        self.resize(width, height)
+
+    def resize(self, width, height):
+        # Bound work even on enormous terminals; extra space stays dark.
+        self.w, self.h = max(1, min(240, width)), max(1, min(80, height))
+        self.track = max(5, int(self.h * .68))
+        self.water = self.track + 3
+        self.base_key = None
+        rng = random.Random(self.seed)
+        self.star_points = [(rng.randrange(self.w), rng.randrange(max(1, self.track - 4)),
+                             rng.random()) for _ in range(max(6, self.w * self.h // 95))]
+        self.drops = [(rng.random(), rng.random(), rng.uniform(.7, 1.3))
+                      for _ in range(min(650, self.w * self.h // 10))]
+        self.ripples = [(rng.random(), rng.random(), rng.random())
+                        for _ in range(self.w // 3)]
+
+    def put(self, cells, x, y, text, color):
+        if not 0 <= y < self.h:
+            return
+        for offset, char in enumerate(text):
+            col = x + offset
+            if 0 <= col < self.w:
+                cells[y * self.w + col] = (char, color)
+
+    def background(self):
+        key = (self.w, self.h, self.a.moon, self.a.stars)
+        if key == self.base_key:
+            return self.base
+        cells = [(" ", 0)] * (self.w * self.h)
+        if self.a.stars:
+            for x, y, phase in self.star_points:
+                self.put(cells, x, y, "+" if phase > .91 else ".", 6)
+        if self.a.moon and self.h >= 15:
+            x, y = int(self.w * .76), max(1, int(self.h * .14))
+            for dy, row in enumerate((" .--.", "(  . ", " `--'")):
+                self.put(cells, x, y + dy, row, 7)
+        for x in range(self.w):
+            far = int(self.track - 5 - 2.0 * math.sin(x * .065) - 1.3 * math.sin(x * .14))
+            near = int(self.track - 2 - 1.5 * math.sin(x * .08 + 2))
+            for y in range(max(0, far), min(self.track, self.h)):
+                self.put(cells, x, y, "." if y == far else ":", 1)
+            for y in range(max(0, near), min(self.track, self.h)):
+                self.put(cells, x, y, "^" if y == near else ":", 2)
+        # A small station and warm windows on the far bank.
+        if self.w >= 55 and self.h >= 18:
+            sx = int(self.w * .14)
+            for dy, row in enumerate(("   /\\   ", "  /__\\__", "  | [] |", "__|____|__")):
+                self.put(cells, sx, self.track - 4 + dy, row, 9)
+            self.put(cells, sx + 4, self.track - 2, "[]", 8)
+            self.put(cells, sx + 13, self.track - 4, "o", 8)
+            for y in range(self.track - 3, self.track):
+                self.put(cells, sx + 13, y, "|", 9)
+        self.put(cells, 0, self.track, "=" * self.w, 9)
+        self.put(cells, 0, self.track + 1, "--+-----" * (self.w // 8 + 1), 2)
+        for x in range(6, self.w, 19):
+            self.put(cells, x, self.track + 2, "|", 2)
+        # Foreground pines frame the lake.
+        if self.h >= 22:
+            for x, size in ((2, 4), (self.w - 8, 5), (self.w - 3, 3)):
+                bottom = self.h - 3
+                for n in range(size):
+                    self.put(cells, x - n, bottom - size + n, "/" + "^" * (2*n) + "\\", 3)
+                self.put(cells, x, bottom, "||", 3)
+        self.base, self.base_key = cells, key
+        return cells
+
+    def send_train(self):
+        if self.train_x is None:
+            self.train_direction = self.rng.choice((-1, 1))
+            self.train_x = -65.0 if self.train_direction == 1 else float(self.w)
+
+    def advance(self, dt):
+        if self.a.paused:
+            return
+        self.time += dt
+        if self.train_x is not None:
+            self.train_x += self.train_direction * 14 * dt
+            if self.train_x > self.w + 2 or self.train_x < -68:
+                self.train_x = None
+                self.next_train = self.time + self.rng.uniform(18, 38)
+        elif self.a.trains and self.time >= self.next_train:
+            self.send_train()
+        if self.meteor is not None and self.time - self.meteor[0] > 1.2:
+            self.meteor = None
+        if self.a.stars and self.time >= self.next_meteor:
+            self.meteor = (self.time, self.rng.randrange(max(1, self.w // 2)),
+                           self.rng.randrange(1, max(2, self.track // 3)))
+            self.next_meteor = self.time + self.rng.uniform(12, 28)
+
+    def key(self, key):
+        a = self.a
+        if key in ("q", "Q", "\x1b", "\x03"):
+            return False
+        if key in PRESETS:
+            a.rain, a.wind, a.fog, a.stars = PRESETS[key]
+        elif key == "r": a.rain = (a.rain + 1) % 4
+        elif key == "w": a.wind = (a.wind + 1) % 3
+        elif key == "f": a.fog = (a.fog + 1) % 3
+        elif key == "m": a.moon = not a.moon
+        elif key == "s": a.stars = not a.stars
+        elif key == "a": a.trains = not a.trains
+        elif key == "b": a.palette = (a.palette + 1) % len(PALETTES)
+        elif key == "e": a.eco = not a.eco
+        elif key == " ": a.paused = not a.paused
+        elif key in ("h", "?"): a.help = not a.help
+        elif key == "i": a.hud = not a.hud
+        elif key == "t": self.send_train()
+        return True
+
+    def frame(self):
+        a, t = self.a, self.time
+        cells = self.background().copy()
+        if self.w < 36 or self.h < 14:
+            cells = [(" ", 0)] * (self.w * self.h)
+            self.put(cells, 0, 0, "night: resize to 36 x 14", 10)
+            self.put(cells, 0, 2, "q quit / h help", 10)
+            return cells
+        for u, v, phase in self.ripples:
+            y = self.water + int(v * max(1, self.h - self.water - 2))
+            x = int((u * self.w + math.sin(t * .45 + phase * 6) * 2) % self.w)
+            if 0 <= y < self.h and self.base[y * self.w + x][1] != 3:
+                self.put(cells, x, y, "~" if phase < .6 else "--", 4)
+        if a.moon:
+            for y in range(self.water, self.h - 2):
+                spread = 2 + (y - self.water) // 2
+                x = int(self.w * .78 + math.sin(y * 2 + t * .8) * spread)
+                self.put(cells, x, y, "- --" if y % 2 else "--", 4)
+        if a.fog:
+            for band in range(a.fog):
+                y = self.track - 5 + band * 2
+                for x in range(self.w):
+                    phase = (x + int(t * (1 if a.wind == 1 else (a.wind - 1) * 2)) + band * 21) % 53
+                    if phase < 20:
+                        self.put(cells, x, y, "~" if phase % 5 == 0 else " ", 11)
+        if a.stars and self.meteor:
+            start, x, y = self.meteor
+            age = t - start
+            x, y = int(x + age * 25), int(y + age * 5)
+            if y < self.track - 5:
+                for tail in range(5, 0, -1):
+                    self.put(cells, x - tail * 2, y - tail // 2, ".", 6)
+                self.put(cells, x, y, "*", 7)
+        count = int(len(self.drops) * (0, .15, .45, 1)[a.rain])
+        for u, v, speed in self.drops[:count]:
+            y = int((v * (self.h - 2) + t * (9 + a.rain * 3) * speed) % (self.h - 2))
+            x = int((u * self.w + t * (a.wind - 1) * 8 * speed) % self.w)
+            self.put(cells, x, y, ("/", "|", "\\")[a.wind] if a.rain > 1 else ".", 5)
+        if self.train_x is not None:
+            x = int(self.train_x)
+            rows = ("  _____________   _____________   _____________   _________ ",
+                    " | [] [] [] [] |-| [] [] [] [] |-| [] [] [] [] |-| [] []  /|",
+                    " |_____________| |_____________| |_____________| |_______/_|",
+                    "   o         o     o         o     o         o     o     o  ")
+            if self.train_direction == -1:
+                mirror = str.maketrans("/\\[]", "\\/][")
+                rows = tuple(row[::-1].translate(mirror) for row in rows)
+            for dy, row in enumerate(rows):
+                self.put(cells, x, self.track - 4 + dy, row, 9)
+                if dy == 1:
+                    for col, char in enumerate(row):
+                        if char in "[]": self.put(cells, x + col, self.track - 3, char, 8)
+            front = x + 59 if self.train_direction == 1 else x
+            self.put(cells, front, self.track - 2, "*", 7)
+            for col in range(4, 58, 8):
+                self.put(cells, x + col, self.water + 1, "-", 8)
+        if a.hud:
+            self.put(cells, 0, self.h - 2, " " * self.w, 0)
+            self.put(cells, 0, self.h - 1, " " * self.w, 0)
+            state = "PAUSED" if a.paused else ("ECO 6fps" if a.eco else PALETTES[a.palette][0])
+            status = f" NIGHT / {state}   {RAIN[a.rain]} / wind {WIND[a.wind]} / fog {a.fog}"
+            self.put(cells, 0, self.h - 2, status, 10)
+            self.put(cells, 0, self.h - 1, " 1-3 mood  r rain  t train  h help  i hide  q quit", 9)
+        if a.help:
+            width = min(44, self.w)
+            x, y = (self.w - width) // 2, max(0, (self.h - len(HELP) - 4) // 2)
+            lines = HELP + ("i  hide/show footer", f"Automatic trains: {'on' if a.trains else 'off'}",)
+            for dy, row in enumerate(("",) + lines + ("",)):
+                self.put(cells, x, y + dy, " " * width, 0)
+                self.put(cells, x + 2, y + dy, row[:width - 4], 10 if dy != 1 else 8)
+        return cells
+
+
+class Painter:
+    """Send contiguous changed cells only; untouched scenery costs no terminal I/O."""
+    def __init__(self, color=True):
+        self.color = color
+        self.previous = None
+        self.layout = None
+
+    def encode(self, cells, width, height, palette):
+        layout = (width, height, palette)
+        reset = layout != self.layout
+        previous = None if reset else self.previous
+        _, bg, colors = PALETTES[palette]
+        parts = []
+        if reset:
+            parts.append(ESC + "0m")
+            if self.color: parts.append(f"{ESC}48;2;{bg[0]};{bg[1]};{bg[2]}m")
+            parts.append(ESC + "2J")
+        active = None
+        changed = range(len(cells)) if previous is None else (
+            i for i, (old, new) in enumerate(zip(previous, cells)) if old != new
+        )
+        last = -2
+        for i in changed:
+            if i != last + 1 or i % width == 0:
+                parts.append(f"{ESC}{i // width + 1};{i % width + 1}H")
+            char, color = cells[i]
+            if self.color and color != active:
+                rgb = colors[color]
+                parts.append(f"{ESC}38;2;{rgb[0]};{rgb[1]};{rgb[2]}m")
+                active = color
+            parts.append(char)
+            last = i
+        self.previous, self.layout = cells, layout
+        return "".join(parts)
+
+
+def parser():
+    p = argparse.ArgumentParser(description=__doc__, prog="night")
+    p.add_argument("--fps", type=int, choices=range(1, 25), default=12, metavar="1..24")
+    p.add_argument("--eco", action="store_true", help="use 6 FPS")
+    p.add_argument("--mood", choices=("clear", "rainy", "storm"), default="rainy")
+    p.add_argument("--no-color", action="store_true")
+    p.add_argument("--frames", type=int, help="exit after N frames; pipes default to one plain frame")
+    p.add_argument("--seed", type=int, default=17)
+    return p
+
+
+def main(argv=None):
+    p = parser()
+    args = p.parse_args(argv)
+    if args.frames is not None and args.frames < 1: p.error("--frames must be positive")
+    interactive = sys.stdin.isatty() and sys.stdout.isatty() and os.environ.get("TERM") != "dumb"
+    cols, rows = shutil.get_terminal_size((100, 32)) if interactive else (100, 32)
+    scene = Scene(cols, rows, args.seed)
+    scene.key(str(("clear", "rainy", "storm").index(args.mood) + 1))
+    scene.a.eco = args.eco
+    limit = args.frames if args.frames else (None if interactive else 1)
+    painter = Painter(not args.no_color and "NO_COLOR" not in os.environ)
+    saved = None
+    handlers = {}
+    stopping = False
+
+    def stop(signum, frame):
+        nonlocal stopping
+        stopping = True
+
+    try:
+        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+            handlers[sig] = signal.signal(sig, stop)
+        if interactive:
+            saved = termios.tcgetattr(sys.stdin.fileno())
+            tty.setcbreak(sys.stdin.fileno())
+            sys.stdout.write(ESC + "?1049h" + ESC + "?25l" + ESC + "?7l")
+        count = 0
+        last = time.monotonic()
+        deadline = last
+        dirty = True
+        while not stopping:
+            now = time.monotonic()
+            if now >= deadline or dirty:
+                size = shutil.get_terminal_size((100, 32)) if interactive else (100, 32)
+                size = (max(1, min(240, size[0])), max(1, min(80, size[1])))
+                if size != (scene.w, scene.h): scene.resize(*size)
+                scene.advance(min(now - last, .5))
+                last = now
+                if not scene.a.paused or dirty or painter.layout != (scene.w, scene.h, scene.a.palette):
+                    cells = scene.frame()
+                    if interactive:
+                        sys.stdout.write(painter.encode(cells, scene.w, scene.h, scene.a.palette))
+                    else:
+                        sys.stdout.write("\n".join("".join(c[0] for c in cells[y*scene.w:(y+1)*scene.w])
+                                                   for y in range(scene.h)) + "\n")
+                    sys.stdout.flush()
+                    count += 1
+                    if limit is not None and count >= limit: break
+                dirty = False
+                deadline = time.monotonic() + (0.5 if scene.a.paused else 1 / (min(6, args.fps) if scene.a.eco else args.fps))
+            delay = max(0, deadline - time.monotonic())
+            if interactive:
+                readable, _, _ = select.select([sys.stdin], [], [], delay)
+                if readable:
+                    keys = os.read(sys.stdin.fileno(), 64).decode("ascii", errors="ignore")
+                    if not keys: break
+                    # Account for elapsed time before toggling pause, so resuming never jumps.
+                    now = time.monotonic()
+                    scene.advance(min(now - last, .5))
+                    last = now
+                    for key in keys:
+                        if not scene.key(key): stopping = True; break
+                    dirty = True
+            else:
+                time.sleep(delay)
+    finally:
+        if saved is not None:
+            termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, saved)
+            sys.stdout.write(ESC + "0m" + ESC + "?7h" + ESC + "?25h" + ESC + "?1049l")
+            sys.stdout.flush()
+        for sig, handler in handlers.items(): signal.signal(sig, handler)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except BrokenPipeError:
+        # Normal when a preview is piped into head.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())

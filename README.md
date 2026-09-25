@@ -13,6 +13,7 @@ The script will:
 - Download and place zshrc, gitconfig, vimrc, tmux.conf
 - Generate SSH auth key (`~/.ssh/id_ed25519`) and signing key (`~/.ssh/ssh_sign`)
 - Prompt for your name/email and configure git
+- Install the `night` and `coin` terminal programs in `~/.local/bin/`
 
 After running, add both keys to GitHub and run `exec zsh`.
 
@@ -34,6 +35,22 @@ script. Codex discovers the linked skills from any local repo. If an updated
 skill does not appear immediately, restart Codex.
 
 The main `setup.sh` downloads and runs this installer as part of setup.
+
+## Terminal programs
+
+`night` shows a moonlit railway scene, and `coin` renders a rotating ASCII
+GIMLET coin. Both are Python 3.9+ programs with no third party packages. Their
+source lives in `programs/` and the Linux setup script installs them in
+`~/.local/bin/`. Open a new shell after setup so the commands are on `PATH`.
+
+To install or update only these programs:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TarasPriadka/dotfiles/main/programs/install.sh | bash
+```
+
+For a single plain frame, run `night --frames 1 --no-color` or
+`coin --frames 1 --no-color`.
 
 ## Sync Configs Only
 

@@ -16,7 +16,7 @@ warn()    { echo -e "${YELLOW}[setup]${NC} $*"; }
 # ── System packages ────────────────────────────────────────────────────────
 info "Installing system packages..."
 sudo apt-get install -y \
-    zsh git curl vim tmux ripgrep tig
+    zsh git curl vim tmux ripgrep tig python3
 
 # ── oh-my-zsh ─────────────────────────────────────────────────────────────
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
@@ -128,6 +128,11 @@ fi
 info "Installing personal Codex skills..."
 curl -fsSL "$RAW_BASE/skills/install.sh" | bash
 success "Personal Codex skills installed"
+
+# ── Terminal programs ──────────────────────────────────────────────────────
+info "Installing night and coin..."
+curl -fsSL "$RAW_BASE/programs/install.sh" | bash
+success "Night and coin installed in ~/.local/bin"
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""

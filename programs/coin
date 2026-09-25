@@ -1,0 +1,417 @@
+#!/usr/bin/env python3
+"""Terminal animation and 3D ASCII renderer for the GIMLET coin."""
+
+from __future__ import annotations
+
+import argparse
+import math
+import os
+import shutil
+import signal
+import sys
+import time
+from dataclasses import dataclass
+from functools import lru_cache
+
+
+RESET = "\x1b[0m"
+MIDNIGHT_BG = "\x1b[48;2;3;6;18m"
+SILVER = (205, 216, 226)
+LETTER_WHITE = (255, 255, 255)
+RAMP = " .,:;irsXA253hMHGS#9B&@"
+
+# A tiny texture, sampled in the coin's own coordinate system. That last part is
+# important: the lettering foreshortens and disappears edge-on with the metal.
+FONT = {
+    "G": ("01110", "10001", "10000", "10111", "10001", "10001", "01110"),
+    "I": ("11111", "00100", "00100", "00100", "00100", "00100", "11111"),
+    "M": ("10001", "11011", "10101", "10101", "10001", "10001", "10001"),
+    "L": ("10000", "10000", "10000", "10000", "10000", "10000", "11111"),
+    "E": ("11111", "10000", "10000", "11110", "10000", "10000", "11111"),
+    "T": ("11111", "00100", "00100", "00100", "00100", "00100", "00100"),
+}
+
+
+def _word_bitmap(word: str = "GIMLET") -> tuple[str, ...]:
+    return tuple("0".join(FONT[ch][row] for ch in word) for row in range(7))
+
+
+WORD = _word_bitmap()
+
+
+@dataclass(frozen=True)
+class Hit:
+    distance: float
+    normal: tuple[float, float, float]
+    local_x: float
+    local_y: float
+    face: int  # +1 front cap, -1 back cap, 0 rim
+
+
+def _raycast(x: float, y: float, c: float, s: float, radius: float) -> Hit | None:
+    """Cast an orthographic camera ray against a rotated finite cylinder."""
+    half_thickness = radius * 0.16
+    camera_z = radius * 4.0
+
+    # Transform camera ray from world space into the cylinder's local space.
+    origin_x = c * x - s * camera_z
+    origin_z = s * x + c * camera_z
+    direction_x = s
+    direction_z = -c
+    hits: list[Hit] = []
+
+    # Intersect the two circular faces.
+    if abs(direction_z) > 1e-8:
+        for face in (1, -1):
+            cap_z = face * half_thickness
+            distance = (cap_z - origin_z) / direction_z
+            local_x = origin_x + direction_x * distance
+            if distance >= 0 and local_x * local_x + y * y <= radius * radius:
+                local_normal = (0.0, 0.0, float(face))
+                normal = (
+                    c * local_normal[0] + s * local_normal[2],
+                    0.0,
+                    -s * local_normal[0] + c * local_normal[2],
+                )
+                hits.append(Hit(distance, normal, local_x, y, face))
+
+    # Intersect the curved rim. Since the camera ray has no local Y motion,
+    # this reduces to a small quadratic in local X.
+    if abs(direction_x) > 1e-8:
+        edge = radius * radius - y * y
+        if edge >= 0:
+            root = math.sqrt(edge)
+            for target_x in (root, -root):
+                distance = (target_x - origin_x) / direction_x
+                local_z = origin_z + direction_z * distance
+                if distance >= 0 and abs(local_z) <= half_thickness + 1e-8:
+                    nx, ny = target_x / radius, y / radius
+                    normal = (c * nx, ny, -s * nx)
+                    hits.append(Hit(distance, normal, target_x, y, 0))
+
+    return min(hits, key=lambda hit: hit.distance) if hits else None
+
+
+def _on_letter(hit: Hit, radius: float) -> bool:
+    if hit.face == 0:
+        return False
+
+    # Mirror the reverse-side stamp so GIMLET reads correctly when that side
+    # rotates toward the viewer.
+    u = (hit.local_x * hit.face / radius + 0.88) / 1.76
+    v = (0.40 - hit.local_y / radius) / 0.80
+    if not (0.0 <= u < 1.0 and 0.0 <= v < 1.0):
+        return False
+    col = min(int(u * len(WORD[0])), len(WORD[0]) - 1)
+    row = min(int(v * len(WORD)), len(WORD) - 1)
+    return WORD[row][col] == "1"
+
+
+def _coin_color(brightness: float, letter: bool) -> tuple[int, int, int]:
+    # Cool metallic highlights with a crisp white inlay for the wordmark.
+    factor = 0.46 + brightness * 0.68
+    if letter:
+        return LETTER_WHITE
+    return tuple(min(255, int(channel * factor)) for channel in SILVER)
+
+
+@lru_cache(maxsize=8)
+def _ridges(width: int, height: int, near: bool) -> tuple[int, ...]:
+    """Cache a whole skyline instead of recalculating it for every pixel."""
+    if near:
+        peaks = ((0.05, 5), (0.25, 9), (0.48, 6), (0.70, 10), (0.93, 7))
+        base, spread = height - 2, 0.17
+    else:
+        peaks = ((0.13, 6), (0.38, 8), (0.62, 5), (0.84, 8))
+        base, spread = height - 6, 0.22
+    return tuple(
+        int(
+            base
+            - max(
+                peak_height * max(0.0, 1.0 - abs(col / max(1, width - 1) - position) / spread)
+                for position, peak_height in peaks
+            )
+        )
+        for col in range(width)
+    )
+
+
+def _background_token(
+    col: int, row: int, width: int, height: int, twinkle: int
+) -> tuple[str, tuple[int, int, int] | None]:
+    near_ridge = _ridges(width, height, True)
+    far_ridge = _ridges(width, height, False)
+    near = near_ridge[col]
+    far = far_ridge[col]
+
+    if row >= near:
+        next_height = near_ridge[min(width - 1, col + 1)]
+        edge = "/" if next_height < near else ("\\" if next_height > near else "_")
+        char = edge if row == near else "▓"
+        return char, (18, 27, 58)
+    if row >= far:
+        next_height = far_ridge[min(width - 1, col + 1)]
+        edge = "/" if next_height < far else ("\\" if next_height > far else "_")
+        char = edge if row == far else "▒"
+        return char, (39, 49, 86)
+
+    # A soft crescent in the upper-left sky.
+    moon_x, moon_y, moon_radius = int(width * 0.15), max(4, int(height * 0.18)), 3.4
+    in_moon = (col - moon_x) ** 2 + (row - moon_y) ** 2 <= moon_radius**2
+    cutout = (col - (moon_x + 1.7)) ** 2 + (row - (moon_y - 0.5)) ** 2 <= moon_radius**2
+    if in_moon and not cutout:
+        return "●", (216, 226, 255)
+
+    # Stable star positions with a slow brightness twinkle.
+    seed = (col * 92821 + row * 68917 + 17) % 1009
+    if seed % 29 == 0:
+        brightness = (seed // 29 + twinkle) % 3
+        return ("·", "+", "*")[brightness], (145, 175, 235)
+    return " ", None
+
+
+@lru_cache(maxsize=4)
+def _background_plane(
+    width: int, height: int, twinkle: int
+) -> tuple[tuple[tuple[str, tuple[int, int, int] | None], ...], ...]:
+    return tuple(
+        tuple(_background_token(col, row, width, height, twinkle) for col in range(width))
+        for row in range(height)
+    )
+
+
+def _encode_background(
+    tokens: tuple[tuple[str, tuple[int, int, int] | None], ...], color: bool
+) -> str:
+    if not color:
+        return "".join(char for char, _rgb in tokens)
+    parts = [MIDNIGHT_BG]
+    active_color: tuple[int, int, int] | None = None
+    for char, rgb in tokens:
+        if rgb is not None and rgb != active_color:
+            parts.append(f"\x1b[38;2;{rgb[0]};{rgb[1]};{rgb[2]}m")
+            active_color = rgb
+        parts.append(char)
+    parts.append(RESET)
+    return "".join(parts)
+
+
+@lru_cache(maxsize=4)
+def _background_layout(
+    width: int,
+    height: int,
+    twinkle: int,
+    color: bool,
+    left: int,
+    right: int,
+    top: int,
+    bottom: int,
+) -> tuple[tuple[str, str, str], ...]:
+    """Pre-encode unchanged rows plus both sides of the animated coin area."""
+    plane = _background_plane(width, height, twinkle)
+    rows: list[tuple[str, str, str]] = []
+    for row, tokens in enumerate(plane):
+        full = _encode_background(tokens, color)
+        if top <= row < bottom:
+            rows.append((full, _encode_background(tokens[:left], color), _encode_background(tokens[right:], color)))
+        else:
+            rows.append((full, "", ""))
+    return tuple(rows)
+
+
+def render(
+    angle: float,
+    radius: float = 12.0,
+    color: bool = True,
+    midnight: bool = True,
+    width: int | None = None,
+    height: int | None = None,
+    phase: float | None = None,
+) -> str:
+    """Render one frame. Exposed separately to keep it easy to test and remix."""
+    coin_width = int(radius * 4.5) | 1
+    coin_height = int(radius * 2.3) | 1
+    if midnight:
+        width = max(coin_width, width or 79)
+        height = max(coin_height, height or 33)
+    else:
+        width, height = coin_width, coin_height
+    cx = width // 2
+    cy = height // 2 - (2 if midnight else 0)
+    phase = angle if phase is None else phase
+    twinkle = int(phase * 2.0) % 3
+    backdrop = _background_plane(width, height, twinkle) if midnight else None
+    cos_angle, sin_angle = math.cos(angle), math.sin(angle)
+    light = (-0.35, 0.55, 0.76)
+    lines: list[str] = []
+
+    if midnight:
+        half_coin_width = math.ceil((radius + 0.5) * 2.0)
+        left = max(0, cx - half_coin_width)
+        right = min(width, cx + half_coin_width + 1)
+        top = max(0, cy - math.ceil(radius + 0.5))
+        bottom = min(height, cy + math.ceil(radius + 0.5) + 1)
+        layout = _background_layout(width, height, twinkle, color, left, right, top, bottom)
+    else:
+        left, right, top, bottom = 0, width, 0, height
+        layout = None
+
+    for row in range(height):
+        if layout is not None and not (top <= row < bottom):
+            lines.append(layout[row][0])
+            continue
+
+        cells: list[str] = []
+        if layout is not None:
+            cells.append(layout[row][1])
+            if color:
+                cells.append(MIDNIGHT_BG)
+        active_color: tuple[int, int, int] | None = None
+        for col in range(left, right):
+            # Terminal glyphs are roughly twice as tall as they are wide.
+            x = (col - cx) * 0.5
+            y = cy - row
+            # A rotated cylinder can never reach outside this box. Avoiding a
+            # ray cast for the rest of a large screen is the biggest CPU win.
+            inside_coin_box = abs(x) <= radius + 0.5 and abs(y) <= radius + 0.5
+            hit = _raycast(x, y, cos_angle, sin_angle, radius) if inside_coin_box else None
+            if hit is None:
+                char, rgb = backdrop[row][col] if backdrop is not None else (" ", None)
+                if color and rgb is not None and rgb != active_color:
+                    cells.append(f"\x1b[38;2;{rgb[0]};{rgb[1]};{rgb[2]}m")
+                    active_color = rgb
+                cells.append(char)
+                continue
+
+            nx, ny, nz = hit.normal
+            diffuse = max(0.0, nx * light[0] + ny * light[1] + nz * light[2])
+            rim_glint = (1.0 - max(0.0, nz)) ** 5 * 0.22
+            brightness = min(1.0, 0.17 + diffuse * 0.74 + rim_glint)
+            letter = _on_letter(hit, radius)
+            if letter:
+                char = "█" if color else "#"
+            else:
+                char = RAMP[min(int(brightness * (len(RAMP) - 1)), len(RAMP) - 1)]
+            rgb = _coin_color(brightness, letter)
+            if color and rgb != active_color:
+                cells.append(f"\x1b[38;2;{rgb[0]};{rgb[1]};{rgb[2]}m")
+                active_color = rgb
+            cells.append(char)
+
+        if layout is not None:
+            cells.append(layout[row][2])
+        line = "".join(cells)
+        if not midnight:
+            line = line.rstrip()
+        if color and line:
+            line += RESET
+        lines.append(line)
+
+    frame = "\n".join(lines)
+    return frame if midnight else frame.rstrip()
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="gimlet-coin",
+        description="Spin a 3D ASCII GIMLET coin in your terminal.",
+    )
+    parser.add_argument("--fps", type=float, default=15.0, help="frames per second (default: 15)")
+    parser.add_argument("--speed", type=float, default=0.70, help="radians per second (default: 0.70)")
+    parser.add_argument("--size", type=float, default=12.0, help="coin radius in terminal rows (default: 12)")
+    parser.add_argument("--frames", type=int, help="render N frames, then exit")
+    parser.add_argument("--no-color", action="store_true", help="disable true-color ANSI output")
+    parser.add_argument("--coin-only", action="store_true", help="hide the midnight landscape")
+    parser.add_argument("--no-alt-screen", action="store_true", help="animate in the current screen buffer")
+    return parser
+
+
+def _positive(parser: argparse.ArgumentParser, name: str, value: float) -> None:
+    if value <= 0:
+        parser.error(f"{name} must be greater than zero")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _parser()
+    args = parser.parse_args(argv)
+    _positive(parser, "--fps", args.fps)
+    _positive(parser, "--size", args.size)
+    if args.frames is not None and args.frames <= 0:
+        parser.error("--frames must be greater than zero")
+
+    is_tty = sys.stdout.isatty()
+    color = is_tty and not args.no_color and os.environ.get("TERM") != "dumb"
+    frame_limit = args.frames if args.frames is not None else (None if is_tty else 1)
+    use_alt = is_tty and not args.no_alt_screen
+    period = 1.0 / args.fps
+    started = time.monotonic()
+    rendered = 0
+    stopping = False
+
+    def stop(_signum: int, _frame: object) -> None:
+        nonlocal stopping
+        stopping = True
+
+    old_sigint = signal.signal(signal.SIGINT, stop)
+    try:
+        if use_alt:
+            sys.stdout.write("\x1b[?1049h")
+        if is_tty:
+            # Hide the cursor and disable autowrap while painting the final
+            # screen column; otherwise the bottom-right cell can scroll.
+            sys.stdout.write("\x1b[?25l\x1b[?7l")
+
+        while not stopping and (frame_limit is None or rendered < frame_limit):
+            frame_started = time.monotonic()
+            elapsed = frame_started - started
+            angle = elapsed * args.speed
+
+            if is_tty:
+                cols, rows = shutil.get_terminal_size((80, 34))
+                if args.coin_only:
+                    scene_width = int(args.size * 4.5) | 1
+                    scene_height = int(args.size * 2.3) | 1
+                else:
+                    scene_width, scene_height = cols, rows
+            else:
+                cols, rows = 80, 34
+                scene_width, scene_height = 79, 33
+
+            frame = render(
+                angle,
+                radius=args.size,
+                color=color,
+                midnight=not args.coin_only,
+                width=scene_width,
+                height=scene_height,
+                phase=elapsed,
+            )
+
+            if is_tty:
+                frame_lines = frame.splitlines()
+                visible_width = scene_width if not args.coin_only else int(args.size * 4.5)
+                left = max(0, (cols - visible_width) // 2)
+                top = max(0, (rows - len(frame_lines)) // 2)
+                line_break = "\x1b[1E" if not args.coin_only else "\n"
+                positioned = ("\n" * top) + line_break.join((" " * left) + line for line in frame_lines)
+                sys.stdout.write("\x1b[H" + positioned + "\x1b[J")
+                sys.stdout.flush()
+            else:
+                sys.stdout.write(frame + "\n")
+
+            rendered += 1
+            delay = period - (time.monotonic() - frame_started)
+            if delay > 0 and (frame_limit is None or rendered < frame_limit):
+                time.sleep(delay)
+    finally:
+        signal.signal(signal.SIGINT, old_sigint)
+        if is_tty:
+            sys.stdout.write(RESET + "\x1b[?7h\x1b[?25h")
+        if use_alt:
+            sys.stdout.write("\x1b[?1049l")
+        sys.stdout.flush()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
