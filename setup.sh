@@ -130,9 +130,9 @@ curl -fsSL "$RAW_BASE/skills/install.sh" | bash
 success "Personal Codex skills installed"
 
 # ── Terminal programs ──────────────────────────────────────────────────────
-info "Installing night and coin..."
+info "Installing night, coin, and beach..."
 curl -fsSL "$RAW_BASE/programs/install.sh" | bash
-success "Night and coin installed in ~/.local/bin"
+success "Night, coin, and beach installed in ~/.local/bin"
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""

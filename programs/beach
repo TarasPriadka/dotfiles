@@ -1,0 +1,594 @@
+#!/usr/bin/env python3
+"""A warm, quiet beach for your terminal. Python 3.9+, no dependencies."""
+
+from __future__ import annotations
+
+import argparse
+import math
+import os
+import random
+import select
+import shutil
+import signal
+import sys
+import termios
+import time
+import tty
+from dataclasses import dataclass
+
+ESC = "\x1b["
+WAVES = ("off", "gentle", "rolling")
+WIND = ("still", "breeze", "trade")
+# Sky top, sky horizon, deep water, shallows, wet sand, dry sand, sun, foliage.
+PALETTES = {
+    "honey": (
+        (113, 179, 184),
+        (250, 214, 164),
+        (47, 132, 146),
+        (104, 187, 171),
+        (196, 173, 126),
+        (237, 205, 151),
+        (255, 244, 192),
+        (25, 117, 48),
+    ),
+    "noon": (
+        (111, 186, 210),
+        (214, 232, 208),
+        (32, 130, 163),
+        (90, 192, 178),
+        (192, 181, 139),
+        (244, 221, 173),
+        (255, 250, 211),
+        (18, 126, 50),
+    ),
+    "peach": (
+        (178, 174, 188),
+        (255, 200, 157),
+        (79, 139, 149),
+        (137, 189, 174),
+        (204, 168, 136),
+        (242, 202, 159),
+        (255, 236, 183),
+        (39, 114, 43),
+    ),
+}
+PRESETS = {"calm": (1, 1, "honey"), "breezy": (2, 2, "noon"), "golden": (1, 1, "peach")}
+HELP = (
+    "B E A C H   /   a little daylight",
+    "",
+    "1 calm    2 breezy    3 golden",
+    "w waves   b wind      p palms",
+    "s sun     c clouds    t palette",
+    "e eco (4 FPS)        Space pause",
+    "i footer  h / ? help  q / Esc quit",
+)
+
+
+def mix(a, b, amount):
+    return tuple(round(x + (y - x) * amount) for x, y in zip(a, b))
+
+
+@dataclass
+class Atmosphere:
+    waves: int = 1
+    wind: int = 1
+    palette: str = "honey"
+    palms: bool = True
+    sun: bool = True
+    clouds: bool = True
+    eco: bool = False
+    paused: bool = False
+    hud: bool = True
+    help: bool = False
+
+
+class Scene:
+    def __init__(self, width=100, height=32, seed=17, atmosphere=None):
+        self.seed = seed
+        self.a = atmosphere or Atmosphere()
+        self.time = 0.0
+        self.resize(width, height)
+
+    def resize(self, width, height):
+        # Bound both frame work and terminal traffic on very large displays.
+        self.w, self.h = max(1, min(240, width)), max(1, min(80, height))
+        self.horizon = max(3, int(self.h * 0.40))
+        self.shore = [
+            int(self.h * (0.73 + 0.035 * math.sin(x / self.w * 5 + 0.4)))
+            for x in range(self.w)
+        ]
+        self.wave_shape = [
+            (math.sin(x * 0.075), math.cos(x * 0.075)) for x in range(self.w)
+        ]
+        self.base_key = None
+        rng = random.Random(self.seed)
+        self.glints = [
+            (rng.randrange(self.w), rng.random(), rng.random() * math.tau)
+            for _ in range(self.w // 3)
+        ]
+        self.clouds = [
+            (rng.uniform(0.05, 0.8), rng.uniform(0.10, 0.25), rng.random())
+            for _ in range(3)
+        ]
+        self.palm_shapes = []
+        self.palm_poses = {}
+        for u, v, scale, lean in ((0.10, 0.92, 0.60, 1), (0.91, 0.96, 0.65, -1)):
+            bx, by = self.w * u, self.h * v
+            length = min(self.h * scale, self.w * 0.27)
+            cx, cy = bx + lean * length * 0.30, by - length
+            span = min(self.w * 0.15, length * 1.05)
+            branches = []
+            # Rasterize feather-shaped fronds once, at two pixels per terminal row.
+            # Each frond retains its own bend so the tips move with the breeze.
+            for branch, (reach, rise, drop) in enumerate(
+                (
+                    (-0.65, -0.27, -0.10),
+                    (0.47, -0.32, -0.15),
+                    (-1, -0.20, 0.10),
+                    (1, -0.23, 0.06),
+                    (-0.79, -0.06, 0.31),
+                    (0.83, -0.09, 0.34),
+                    (0.20, 0.02, 0.43),
+                )
+            ):
+                pixels = {}
+                steps = max(12, round(span * 3))
+                for n in range(steps + 1):
+                    t = n / steps
+                    x = reach * span * t
+                    y = 2 * length * (2 * (1 - t) * t * rise + t * t * drop)
+                    thickness = max(0.15, math.sin(math.pi * t) * length * 0.070)
+                    for py in range(
+                        math.floor(y - thickness), math.ceil(y + thickness) + 1
+                    ):
+                        ink = 4 if py < y else 3
+                        pixels[round(x), py] = (ink, t)
+                    if n % 3 == 0 and 0.13 < t < 0.94:
+                        # Closely spaced, drooping leaflets give a filled canopy with a ragged edge.
+                        feather = math.sin(math.pi * t) * length * 0.16
+                        for k in range(1, max(2, round(feather * 2))):
+                            f = k / max(2, round(feather * 2))
+                            px = round(x - math.copysign(feather * 0.45 * f, reach))
+                            py = round(y + feather * f)
+                            pixels[px, py] = (3 if branch % 2 else 10, t)
+                branches.append(
+                    tuple((x, y, ink, t) for (x, y), (ink, t) in pixels.items())
+                )
+            self.palm_shapes.append((bx, by, cx, cy, length, branches))
+
+    def put(self, cells, x, y, text, ink, background=None):
+        if not 0 <= y < self.h:
+            return
+        for offset, char in enumerate(text):
+            col = x + offset
+            if 0 <= col < self.w:
+                index = y * self.w + col
+                cells[index] = (
+                    char,
+                    ink,
+                    cells[index][2] if background is None else background,
+                )
+
+    def background(self):
+        key = (self.w, self.h, self.a.palette, self.a.sun)
+        if key == self.base_key:
+            return self.base
+        sky, haze, sea, shallow, wet, sand, sun, green = PALETTES[self.a.palette]
+        colors = [
+            (
+                mix(sky, haze, min(1, y / max(1, self.horizon - 1)))
+                if y < self.horizon
+                else mix(
+                    sea, shallow, min(1, (y - self.horizon) / max(1, self.h * 0.34))
+                )
+            )
+            for y in range(self.h)
+        ]
+        # Palette indices let the hot loop compare small tuples and reuse ANSI strings.
+        self.inks = [
+            mix(sea, shallow, 0.65),
+            (245, 244, 215),
+            sun,
+            green,
+            mix(green, (139, 194, 43), 0.48),
+            (108, 81, 48),
+            (159, 119, 66),
+            mix(wet, (96, 83, 61), 0.25),
+            (66, 76, 65),
+            mix(haze, sun, 0.7),
+            mix(green, (8, 57, 29), 0.48),
+            (113, 75, 36),
+        ]
+        self.bgs = colors + [wet, sand, mix(sand, wet, 0.35), mix(haze, sand, 0.5), sun]
+        self.palm_backgrounds = {}
+        for ink in (3, 4, 5, 6, 10, 11):
+            self.palm_backgrounds[ink] = len(self.bgs)
+            self.bgs.append(self.inks[ink])
+        self.wet, self.sand, self.shadow, self.panel = range(self.h, self.h + 4)
+        cells = []
+        for y in range(self.h):
+            for x in range(self.w):
+                bg = (
+                    y
+                    if y < self.shore[x]
+                    else (self.wet if y == self.shore[x] else self.sand)
+                )
+                cells.append((" ", 0, bg))
+        self.put(cells, 0, self.horizon, "_" * self.w, 0)
+        rng = random.Random(self.seed)
+        for _ in range(self.w * self.h // 65):
+            x = rng.randrange(self.w)
+            y = rng.randrange(max(1, self.h))
+            if y > self.shore[x] + 1:
+                self.put(cells, x, y, "." if rng.random() < 0.7 else ",", 7)
+        if self.a.sun and self.h >= 14:
+            cx, cy = int(self.w * 0.69), max(2, int(self.h * 0.18))
+            radius = max(1.2, min(self.h * 0.065, self.w * 0.035))
+            for y in range(
+                max(0, int(cy - radius)), min(self.horizon, int(cy + radius) + 1)
+            ):
+                half = int(2 * math.sqrt(max(0, radius * radius - (y - cy) ** 2)))
+                self.put(cells, cx - half, y, "@" * (half * 2 + 1), 2, self.h + 4)
+        self.base, self.base_key = cells, key
+        return cells
+
+    def advance(self, dt):
+        if not self.a.paused:
+            self.time += dt
+
+    def key(self, key):
+        a = self.a
+        if key in ("q", "Q", "\x1b", "\x03"):
+            return False
+        if key in ("1", "2", "3"):
+            a.waves, a.wind, a.palette = PRESETS[tuple(PRESETS)[int(key) - 1]]
+        elif key == "w":
+            a.waves = (a.waves + 1) % len(WAVES)
+        elif key == "b":
+            a.wind = (a.wind + 1) % len(WIND)
+        elif key == "p":
+            a.palms = not a.palms
+        elif key == "s":
+            a.sun = not a.sun
+        elif key == "c":
+            a.clouds = not a.clouds
+        elif key == "t":
+            names = tuple(PALETTES)
+            a.palette = names[(names.index(a.palette) + 1) % len(names)]
+        elif key == "e":
+            a.eco = not a.eco
+        elif key == " ":
+            a.paused = not a.paused
+        elif key == "i":
+            a.hud = not a.hud
+        elif key in ("h", "?"):
+            a.help = not a.help
+        return True
+
+    def draw_palms(self, cells):
+        for tree, (bx, by, cx, cy, length, branches) in enumerate(self.palm_shapes):
+            sway = math.sin(self.time * 0.33 + tree * 1.8) * (0, 0.8, 1.6)[self.a.wind]
+            bends = tuple(
+                round(
+                    math.sin(self.time * 0.43 + tree * 1.8 + branch * 0.7)
+                    * (0, 0.6, 1.0)[self.a.wind]
+                    * 4
+                )
+                / 4
+                for branch in range(len(branches))
+            )
+            sway = round(sway * 4) / 4
+            pose = (sway, bends)
+            cached = self.palm_poses.get(tree)
+            if cached is not None and cached[0] == pose:
+                for x, y, char, ink, bg in cached[1]:
+                    self.put(cells, x, y, char, ink, bg)
+                continue
+            pixels = {}
+            for py in range(round(cy * 2), round(by * 2) + 1):
+                u = min(1, (by - py / 2) / length)
+                x = round(bx + (cx + sway - bx) * u * u)
+                width = max(2, round(length * (0.15 - 0.065 * u)))
+                for dx in range(width):
+                    # A shaded, ringed trunk stays solid against both sky and sea.
+                    pixels[x + dx, py] = 5 if dx == 0 else (11 if py % 5 == 0 else 6)
+            for branch, points in enumerate(branches):
+                bend = bends[branch]
+                for dx, dy, ink, progress in points:
+                    x = round(cx + sway + dx + bend * progress * progress)
+                    y = round(cy * 2 + dy + bend * progress)
+                    pixels[x, y] = ink
+            for dx, dy in ((0, 0), (2, 1), (-1, 2)):
+                pixels[round(cx + sway) + dx, round(cy * 2) + dy] = 11
+            pairs = {}
+            for (x, py), ink in pixels.items():
+                if 0 <= x < self.w and 0 <= py < self.h * 2:
+                    pair = pairs.setdefault((x, py // 2), [None, None])
+                    pair[py % 2] = ink
+            painted = []
+            for (x, y), (top, bottom) in pairs.items():
+                if top is not None and bottom is not None:
+                    painted.append((x, y, "▀", top, self.palm_backgrounds[bottom]))
+                elif top is not None:
+                    painted.append((x, y, "▀", top, None))
+                else:
+                    painted.append((x, y, "▄", bottom, None))
+            self.palm_poses[tree] = (pose, painted)
+            for x, y, char, ink, bg in painted:
+                self.put(cells, x, y, char, ink, bg)
+
+    def frame(self):
+        cells = self.background().copy()
+        a, t = self.a, self.time
+        if self.w < 36 or self.h < 14:
+            self.put(cells, 0, 0, "beach: resize to 36 x 14", 8, self.panel)
+            return cells
+        if a.clouds:
+            for u, v, phase in self.clouds:
+                x = int((u * self.w + t * (0, 0.22, 0.45)[a.wind]) % (self.w + 20)) - 10
+                y = int(v * self.h)
+                self.put(cells, x + 3, y, "_ .--. _" if phase < 0.5 else " .--.", 9)
+                self.put(
+                    cells, x, y + 1, "(___  ___)" if phase < 0.5 else "(___.__)", 9
+                )
+        for x, depth, phase in self.glints:
+            y = self.horizon + 1 + int(depth * max(1, self.shore[x] - self.horizon - 2))
+            drift = round(math.sin(t * 0.25 + phase) * 1.5) if a.waves else 0
+            self.put(cells, x + drift, y, "--" if depth > 0.4 else "-", 0)
+        if a.sun:
+            for y in range(self.horizon + 1, int(self.h * 0.69), 2):
+                x = int(
+                    self.w * 0.69
+                    + math.sin(y * 1.7 + t * 0.35) * (y - self.horizon) * 0.35
+                )
+                self.put(cells, x, y, "- -" if y % 4 == 0 else "--", 9)
+        speed = (0, 0.065, 0.10)[a.waves]
+        st, ct = math.sin(t * 0.30), math.cos(t * 0.30)
+        for x, (sx, cx) in enumerate(self.wave_shape):
+            shore = self.shore[x]
+            if a.waves:
+                # Perspective makes distant crests close together and surf spread out.
+                for band in range(3):
+                    progress = (t * speed + band / 3) % 1
+                    offset = (sx * ct + cx * st) * progress * 0.65
+                    y = (
+                        self.horizon
+                        + 1
+                        + round(progress**1.5 * (shore - self.horizon - 1) + offset)
+                    )
+                    if y < shore:
+                        self.put(
+                            cells,
+                            x,
+                            y,
+                            "~" if (x + band * 3) % 9 < 3 else "_",
+                            1 if progress > 0.70 else 0,
+                        )
+                wash = math.sin(t * 0.55 + sx * 0.65)
+                edge = shore + (1 if wash > 0.4 else 0)
+                if edge > shore:
+                    self.put(cells, x, shore, " ", 0, shore - 1)
+            else:
+                edge = shore
+            self.put(cells, x, edge, "~" if x % 7 < 2 else "_", 1, self.wet)
+        if a.palms:
+            self.draw_palms(cells)
+        if a.hud:
+            state = "PAUSED" if a.paused else ("ECO" if a.eco else a.palette)
+            self.put(cells, 0, self.h - 2, " " * self.w, 8, self.panel)
+            self.put(cells, 0, self.h - 1, " " * self.w, 8, self.panel)
+            self.put(
+                cells,
+                0,
+                self.h - 2,
+                f" BEACH / {state}   waves {WAVES[a.waves]} / wind {WIND[a.wind]}",
+                8,
+            )
+            self.put(
+                cells,
+                0,
+                self.h - 1,
+                " 1-3 mood  w waves  b wind  e eco  h help  i hide  q quit",
+                8,
+            )
+        if a.help:
+            width = min(44, self.w)
+            x, y = (self.w - width) // 2, max(0, (self.h - len(HELP) - 2) // 2)
+            for dy, row in enumerate(("",) + HELP + ("",)):
+                self.put(cells, x, y + dy, " " * width, 8, self.panel)
+                self.put(cells, x + 2, y + dy, row[: width - 4], 8)
+        return cells
+
+
+class Painter:
+    """Only changed cells go to the terminal; color escapes are cached."""
+
+    def __init__(self, color=True):
+        self.color = color
+        self.previous = None
+        self.layout = None
+        self.styles = {}
+
+    def encode(self, cells, scene):
+        layout = (scene.w, scene.h, scene.a.palette)
+        reset = layout != self.layout
+        previous = None if reset else self.previous
+        parts = []
+        if reset:
+            self.styles = {}
+            parts.append(ESC + "0m" + ESC + "2J")
+        active, last = None, -2
+        for i, cell in enumerate(cells):
+            if previous is not None and cell == previous[i]:
+                continue
+            if i != last + 1 or i % scene.w == 0:
+                parts.append(f"{ESC}{i // scene.w + 1};{i % scene.w + 1}H")
+            char, ink, bg = cell
+            style = (ink, bg)
+            if self.color and style != active:
+                if style not in self.styles:
+                    fg, background = scene.inks[ink], scene.bgs[bg]
+                    self.styles[style] = (
+                        f"{ESC}38;2;{fg[0]};{fg[1]};{fg[2]}m"
+                        f"{ESC}48;2;{background[0]};{background[1]};{background[2]}m"
+                    )
+                parts.append(self.styles[style])
+                active = style
+            parts.append(char)
+            last = i
+        self.previous, self.layout = cells, layout
+        return "".join(parts)
+
+
+def parser():
+    p = argparse.ArgumentParser(
+        prog="beach",
+        description=__doc__,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    p.add_argument(
+        "--fps",
+        type=int,
+        choices=range(1, 25),
+        default=8,
+        metavar="1..24",
+        help="frame rate",
+    )
+    p.add_argument("--eco", action="store_true", help="cap animation at 4 FPS")
+    p.add_argument(
+        "--mood", choices=tuple(PRESETS), default="calm", help="scene preset"
+    )
+    p.add_argument("--waves", choices=WAVES, help="override preset waves")
+    p.add_argument("--wind", choices=WIND, help="override preset wind")
+    p.add_argument("--palette", choices=tuple(PALETTES), help="override preset colors")
+    p.add_argument("--no-palms", action="store_true", help="hide palm trees")
+    p.add_argument("--no-sun", action="store_true", help="hide sun and reflection")
+    p.add_argument("--no-clouds", action="store_true", help="hide clouds")
+    p.add_argument(
+        "--hide-hud", action="store_true", help="start with the footer hidden"
+    )
+    p.add_argument(
+        "--no-color", action="store_true", help="disable color; also honors NO_COLOR"
+    )
+    p.add_argument(
+        "--frames",
+        type=int,
+        help="exit after N frames; pipes default to one plain frame",
+    )
+    p.add_argument("--seed", type=int, default=17, help="scenery seed")
+    return p
+
+
+def main(argv=None):
+    p = parser()
+    args = p.parse_args(argv)
+    if args.frames is not None and args.frames < 1:
+        p.error("--frames must be positive")
+    interactive = (
+        sys.stdin.isatty() and sys.stdout.isatty() and os.environ.get("TERM") != "dumb"
+    )
+    cols, rows = shutil.get_terminal_size((100, 32)) if interactive else (100, 32)
+    a = Atmosphere()
+    a.waves, a.wind, a.palette = PRESETS[args.mood]
+    if args.waves is not None:
+        a.waves = WAVES.index(args.waves)
+    if args.wind is not None:
+        a.wind = WIND.index(args.wind)
+    if args.palette is not None:
+        a.palette = args.palette
+    a.eco, a.hud = args.eco, not args.hide_hud
+    a.palms, a.sun, a.clouds = not args.no_palms, not args.no_sun, not args.no_clouds
+    scene = Scene(cols, rows, args.seed, a)
+    painter = Painter(not args.no_color and "NO_COLOR" not in os.environ)
+    limit = args.frames if args.frames else (None if interactive else 1)
+    saved, handlers, stopping, resized = None, {}, False, False
+
+    def stop(signum, frame):
+        nonlocal stopping
+        stopping = True
+
+    def resize(signum, frame):
+        nonlocal resized
+        resized = True
+
+    try:
+        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+            handlers[sig] = signal.signal(sig, stop)
+        if interactive:
+            handlers[signal.SIGWINCH] = signal.signal(signal.SIGWINCH, resize)
+            saved = termios.tcgetattr(sys.stdin.fileno())
+            tty.setcbreak(sys.stdin.fileno())
+            sys.stdout.write(ESC + "?1049h" + ESC + "?25l" + ESC + "?7l")
+        count, dirty = 0, True
+        last = deadline = time.monotonic()
+        while not stopping:
+            now = time.monotonic()
+            if resized:
+                scene.resize(*shutil.get_terminal_size((100, 32)))
+                painter.layout = None
+                dirty, resized = True, False
+            if now >= deadline or dirty:
+                scene.advance(min(now - last, 0.5))
+                last = now
+                if not a.paused or dirty:
+                    cells = scene.frame()
+                    if interactive:
+                        sys.stdout.write(painter.encode(cells, scene))
+                    else:
+                        sys.stdout.write(
+                            "\n".join(
+                                "".join(
+                                    c[0] for c in cells[y * scene.w : (y + 1) * scene.w]
+                                )
+                                for y in range(scene.h)
+                            )
+                            + "\n"
+                        )
+                    sys.stdout.flush()
+                    count += 1
+                    if limit is not None and count >= limit:
+                        break
+                dirty = False
+                deadline = now + (
+                    0.5 if a.paused else 1 / (min(4, args.fps) if a.eco else args.fps)
+                )
+            delay = max(0, deadline - time.monotonic())
+            if interactive:
+                readable, _, _ = select.select([sys.stdin], [], [], delay)
+                if readable:
+                    keys = os.read(sys.stdin.fileno(), 64).decode(
+                        "ascii", errors="ignore"
+                    )
+                    if not keys:
+                        break
+                    now = time.monotonic()
+                    scene.advance(min(now - last, 0.5))
+                    last = now
+                    for key in keys:
+                        if not scene.key(key):
+                            stopping = True
+                            break
+                    dirty = True
+            else:
+                time.sleep(delay)
+    finally:
+        if saved is not None:
+            try:
+                termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, saved)
+            finally:
+                sys.stdout.write(
+                    ESC + "0m" + ESC + "?7h" + ESC + "?25h" + ESC + "?1049l"
+                )
+                sys.stdout.flush()
+        for sig, handler in handlers.items():
+            signal.signal(sig, handler)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except BrokenPipeError:
+        fd = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(fd, sys.stdout.fileno())
+        os.close(fd)

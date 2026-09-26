@@ -13,7 +13,7 @@ The script will:
 - Download and place zshrc, gitconfig, vimrc, tmux.conf
 - Generate SSH auth key (`~/.ssh/id_ed25519`) and signing key (`~/.ssh/ssh_sign`)
 - Prompt for your name/email and configure git
-- Install the `night` and `coin` terminal programs in `~/.local/bin/`
+- Install the `night`, `coin`, and `beach` terminal programs in `~/.local/bin/`
 
 After running, add both keys to GitHub and run `exec zsh`.
 
@@ -38,8 +38,10 @@ The main `setup.sh` downloads and runs this installer as part of setup.
 
 ## Terminal programs
 
-`night` shows a moonlit railway scene, and `coin` renders a rotating ASCII
-GIMLET coin. Both are Python 3.9+ programs with no third party packages. Their
+`night` shows a moonlit railway scene, `coin` renders a rotating ASCII
+GIMLET coin, and `beach` shows a warm ocean scene with rolling waves and
+swaying green palms. All three are Python 3.9+ programs with no third party
+packages. Their
 source lives in `programs/` and the Linux setup script installs them in
 `~/.local/bin/`. Open a new shell after setup so the commands are on `PATH`.
 `night` starts with its status and controls hidden; press `i` to show them or
@@ -51,8 +53,20 @@ To install or update only these programs:
 curl -fsSL https://raw.githubusercontent.com/TarasPriadka/dotfiles/main/programs/install.sh | bash
 ```
 
-For a single plain frame, run `night --frames 1 --no-color` or
-`coin --frames 1 --no-color`.
+Start a quiet beach background with:
+
+```bash
+beach --eco --hide-hud
+beach --mood golden
+```
+
+`beach` defaults to 8 FPS; `--eco` caps it at 4 FPS. Press `1`–`3` to change
+moods, `w` for waves, `b` for wind, `t` for colors, Space to pause, and `q` to
+quit. Press `h` for all controls, or run `beach --help` for startup options.
+It caches scenery and palm shapes and sends only changed cells to the terminal.
+
+For a single plain frame, pipe any program to a file, for example
+`beach --frames 1 > beach.txt`. All three also accept `--no-color`.
 
 ## Sync Configs Only
 
