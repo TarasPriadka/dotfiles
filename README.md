@@ -13,7 +13,7 @@ The script will:
 - Download and place zshrc, gitconfig, vimrc, tmux.conf
 - Generate SSH auth key (`~/.ssh/id_ed25519`) and signing key (`~/.ssh/ssh_sign`)
 - Prompt for your name/email and configure git
-- Install the `night`, `coin`, and `beach` terminal programs in `~/.local/bin/`
+- Install `night`, `coin`, `beach`, and the `git-uncommit` helper in `~/.local/bin/`
 
 After running, add both keys to GitHub and run `exec zsh`.
 
@@ -47,7 +47,7 @@ source lives in `programs/` and the Linux setup script installs them in
 `night` starts with its status and controls hidden; press `i` to show them or
 `h` for help.
 
-To install or update only these programs:
+To install or update these programs and the `git uncommit` alias:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TarasPriadka/dotfiles/main/programs/install.sh | bash
@@ -68,6 +68,58 @@ It caches scenery and palm shapes and sends only changed cells to the terminal.
 For a single plain frame, pipe any program to a file, for example
 `beach --frames 1 > beach.txt`. All three also accept `--no-color`.
 
+## Reviewing a branch with git uncommit
+
+`git uncommit` stages the combined changes from all commits on the current
+branch, including branches with merges. It asks GitHub for the PR's target
+branch, fetches that branch, and soft-resets to its merge base with `HEAD`.
+Stacked PRs use their own target branch rather than assuming `main`.
+On an existing machine, ensure Git, Python 3, curl, and the GitHub CLI (`gh`)
+are installed, then run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TarasPriadka/dotfiles/main/programs/install.sh | bash
+gh auth login  # Only needed if this machine is not already authenticated
+```
+
+The installer installs the helper and updates only `alias.uncommit` in
+`~/.gitconfig`, preserving your identity, signing settings, and other aliases.
+Run the same installer to update later. New machines running `setup.sh` get the
+dependencies, helper, and alias automatically; GitHub authentication is still
+a manual step. These downloads use the published `main` branch, so local changes
+must be committed and pushed there before other machines can install them.
+
+```bash
+git uncommit                 # Prepare the entire branch for review
+git diff --cached            # Review the combined diff
+git uncommit --restore       # Restore the original commits
+```
+
+The helper preserves the index and working files, including any existing staged,
+unstaged, or untracked edits. It saves the original commit in a private Git ref
+and records the review in the worktree's Git directory. Repeating `git uncommit`
+is a no-op while that review is active. Restore preserves edits made during the
+review; it refuses to overwrite new commits or restore onto a different branch.
+These are local operations; they do not push or change the PR on GitHub.
+
+```bash
+git uncommit --dry-run           # Preview the base and summary; still fetches
+git uncommit --base origin/main  # Use a local ref without contacting GitHub
+git uncommit --one               # Legacy: soft-reset exactly one commit
+```
+
+`--one` does not create a review restore point and cannot be used during an active
+review. Automatic base detection requires an existing PR and network access;
+if it fails, the command stops instead of guessing a base. `--base` uses the
+locally available history, so refresh that reference first if needed. Finish
+any active merge, rebase, or cherry-pick before starting a review.
+
+Run the helper's tests without network access:
+
+```bash
+python3 -m unittest discover -s programs/tests -v
+```
+
 ## Sync Configs Only
 
 Already have the tools installed and just want to pull the latest configs?
@@ -77,6 +129,7 @@ curl -fsSL https://raw.githubusercontent.com/TarasPriadka/dotfiles/main/zshrc   
 curl -fsSL https://raw.githubusercontent.com/TarasPriadka/dotfiles/main/gitconfig -o ~/.gitconfig
 curl -fsSL https://raw.githubusercontent.com/TarasPriadka/dotfiles/main/vimrc     -o ~/.vimrc
 curl -fsSL https://raw.githubusercontent.com/TarasPriadka/dotfiles/main/tmux.conf -o ~/.tmux.conf
+curl -fsSL https://raw.githubusercontent.com/TarasPriadka/dotfiles/main/programs/install.sh | bash
 ```
 
 ## Useful Links and Tips:

@@ -16,7 +16,7 @@ warn()    { echo -e "${YELLOW}[setup]${NC} $*"; }
 # ── System packages ────────────────────────────────────────────────────────
 info "Installing system packages..."
 sudo apt-get install -y \
-    zsh git curl vim tmux ripgrep tig python3
+    zsh git gh curl vim tmux ripgrep tig python3
 
 # ── oh-my-zsh ─────────────────────────────────────────────────────────────
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
@@ -130,9 +130,9 @@ curl -fsSL "$RAW_BASE/skills/install.sh" | bash
 success "Personal Codex skills installed"
 
 # ── Terminal programs ──────────────────────────────────────────────────────
-info "Installing night, coin, and beach..."
+info "Installing night, coin, beach, and git-uncommit..."
 curl -fsSL "$RAW_BASE/programs/install.sh" | bash
-success "Night, coin, and beach installed in ~/.local/bin"
+success "Night, coin, beach, and git-uncommit installed in ~/.local/bin"
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
@@ -154,4 +154,7 @@ echo "   $(cat "$HOME/.ssh/ssh_sign.pub")"
 echo ""
 echo "3. Restart your shell:"
 echo "   exec zsh"
+echo ""
+echo "4. Authenticate the GitHub CLI for git uncommit (if not already authenticated):"
+echo "   gh auth login"
 echo ""
