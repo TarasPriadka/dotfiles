@@ -114,6 +114,9 @@ def review(args: argparse.Namespace) -> None:
     with (git_dir / "uncommit.lock").open("w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         state = json.loads(state_path.read_text()) if state_path.exists() else None
+        discarded_state = state if args.discard else None
+        if args.discard:
+            state = None
         if state:
             if state["branch"] != branch:
                 raise UncommitError(
@@ -122,7 +125,8 @@ def review(args: argparse.Namespace) -> None:
             if head not in (state["target"], state["original"]):
                 raise UncommitError(
                     "HEAD moved since the review started; leaving the saved history intact.\n"
-                    f"Original commits are saved at {state['backup_ref']}."
+                    f"Original commits are saved at {state['backup_ref']}.\n"
+                    "Use git uncommit --discard to replace the saved review, preserving edits."
                 )
             if args.restore:
                 if git("rev-parse", "--verify", state["backup_ref"]) != state["original"]:
@@ -145,11 +149,18 @@ def review(args: argparse.Namespace) -> None:
             return
 
         target, base_label = resolve_target(head, args.base)
+        if git("rev-parse", "HEAD") != head or git("symbolic-ref", "HEAD") != branch:
+            raise UncommitError("HEAD changed while resolving the base; retry the command.")
+        if discarded_state:
+            if args.dry_run:
+                print(f"Would discard the saved review for {discarded_state['branch']}.")
+            else:
+                git("update-ref", "-d", discarded_state["backup_ref"], discarded_state["original"])
+                state_path.unlink()
+                print(f"Discarded the saved review for {discarded_state['branch']}.")
         if target == head:
             print("No branch commits to uncommit relative to " + base_label + ".")
             return
-        if git("rev-parse", "HEAD") != head or git("symbolic-ref", "HEAD") != branch:
-            raise UncommitError("HEAD changed while resolving the base; retry the command.")
         if args.dry_run:
             print(
                 f"Would soft-reset {branch} from {head[:12]} to {target[:12]} (base: {base_label})."
@@ -183,11 +194,18 @@ def main() -> int:
         "--base", metavar="REF", help="use a local base reference without contacting GitHub"
     )
     parser.add_argument(
+        "--discard",
+        action="store_true",
+        help="replace the saved review with one from current HEAD, preserving all local edits",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="resolve the base and show the diff summary without resetting",
     )
     args = parser.parse_args()
+    if args.discard and (args.one or args.restore):
+        parser.error("--discard cannot be combined with --one or --restore")
     if args.dry_run and (args.one or args.restore):
         parser.error("--dry-run cannot be combined with --one or --restore")
     try:

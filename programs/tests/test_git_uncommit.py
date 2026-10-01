@@ -20,6 +20,8 @@ class UncommitTest(unittest.TestCase):
         self.repo.mkdir()
         self.env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
         self.env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
+        # Git prefers an installed git-uncommit over the alias below.
+        self.env["PATH"] = str(PROGRAM.parent) + os.pathsep + self.env["PATH"]
         self.git("init", "-b", "main")
         self.git("config", "user.name", "Test")
         self.git("config", "user.email", "test@example.com")
@@ -128,6 +130,97 @@ class UncommitTest(unittest.TestCase):
         self.assertEqual(self.git("rev-parse", "HEAD"), head)
         saved = json.loads(self.state().read_text())
         self.assertEqual(self.git("rev-parse", saved["backup_ref"]), self.original)
+
+    def test_discard_replaces_stale_review_and_preserves_all_local_edits(self):
+        self.fake_github()
+        self.git("uncommit", "--base", "main")
+        old_state = json.loads(self.state().read_text())
+        self.git("commit", "-m", "new history")
+        current_head = self.git("rev-parse", "HEAD")
+        (self.repo / "one").write_text("staged")
+        self.git("add", "one")
+        (self.repo / "one").write_text("unstaged")
+        (self.repo / "untracked").write_text("untracked")
+        (self.repo / ".gitignore").write_text("ignored/\n")
+        (self.repo / "ignored").mkdir()
+        (self.repo / "ignored" / "file").write_text("ignored")
+        index = self.git("write-tree")
+        status = self.git("status", "--porcelain", "--ignored")
+
+        self.git("uncommit", "--discard")
+
+        saved = json.loads(self.state().read_text())
+        self.assertEqual(saved["original"], current_head)
+        self.assertNotEqual(saved["backup_ref"], old_state["backup_ref"])
+        self.assertEqual(self.git("rev-parse", "HEAD"), self.base)
+        self.assertEqual(self.git("write-tree"), index)
+        self.assertEqual(
+            self.git("for-each-ref", "--format=%(refname)", "refs/uncommit/"),
+            saved["backup_ref"],
+        )
+        self.git("uncommit", "--restore")
+        self.assertEqual(self.git("rev-parse", "HEAD"), current_head)
+        self.assertEqual(self.git("status", "--porcelain", "--ignored"), status)
+        self.assertEqual((self.repo / "one").read_text(), "unstaged")
+        self.assertEqual((self.repo / "untracked").read_text(), "untracked")
+        self.assertEqual((self.repo / "ignored" / "file").read_text(), "ignored")
+
+    def test_discard_dry_run_preserves_stale_state_and_edits(self):
+        self.git("uncommit", "--base", "main")
+        self.git("commit", "-m", "new history")
+        head = self.git("rev-parse", "HEAD")
+        state = self.state().read_bytes()
+        (self.repo / "one").write_text("unstaged")
+        status = self.git("status", "--porcelain")
+
+        result = self.git("uncommit", "--discard", "--base", "main", "--dry-run")
+
+        self.assertIn("Would discard", result)
+        self.assertIn("Would soft-reset", result)
+        self.assertEqual(self.git("rev-parse", "HEAD"), head)
+        self.assertEqual(self.state().read_bytes(), state)
+        self.assertEqual(self.git("rev-parse", json.loads(state)["backup_ref"]), self.original)
+        self.assertEqual(self.git("status", "--porcelain"), status)
+        self.assertEqual((self.repo / "one").read_text(), "unstaged")
+
+    def test_discard_preserves_restore_point_when_base_detection_fails(self):
+        self.git("uncommit", "--base", "main")
+        self.git("commit", "-m", "new history")
+        head = self.git("rev-parse", "HEAD")
+        state = self.state().read_bytes()
+        self.fake_github(fail=True)
+
+        result = self.git("uncommit", "--discard", check=False)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.git("rev-parse", "HEAD"), head)
+        self.assertEqual(self.state().read_bytes(), state)
+        self.assertEqual(self.git("rev-parse", json.loads(state)["backup_ref"]), self.original)
+
+    def test_discard_without_saved_review_prepares_normally(self):
+        self.git("uncommit", "--discard", "--base", "main")
+        self.assertEqual(self.git("rev-parse", "HEAD"), self.base)
+        self.assertEqual(json.loads(self.state().read_text())["original"], self.original)
+
+    def test_discard_with_no_commits_clears_only_saved_review(self):
+        self.git("uncommit", "--base", "main")
+        index = self.git("write-tree")
+        self.git("uncommit", "--discard", "--base", "main")
+        self.assertEqual(self.git("rev-parse", "HEAD"), self.base)
+        self.assertEqual(self.git("write-tree"), index)
+        self.assertFalse(self.state().exists())
+        self.assertEqual(self.git("for-each-ref", "--format=%(refname)", "refs/uncommit/"), "")
+
+    def test_discard_rejects_incompatible_modes_without_changes(self):
+        self.git("uncommit", "--base", "main")
+        state = self.state().read_bytes()
+        for mode in ("--restore", "--one"):
+            with self.subTest(mode=mode):
+                result = self.git("uncommit", "--discard", mode, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("--discard cannot be combined", result.stderr)
+                self.assertEqual(self.state().read_bytes(), state)
+                self.assertEqual(self.git("rev-parse", "HEAD"), self.base)
 
     def test_one_retains_legacy_behavior(self):
         expected = self.git("rev-parse", "HEAD~1")

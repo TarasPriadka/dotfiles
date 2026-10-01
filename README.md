@@ -106,7 +106,16 @@ These are local operations; they do not push or change the PR on GitHub.
 git uncommit --dry-run           # Preview the base and summary; still fetches
 git uncommit --base origin/main  # Use a local ref without contacting GitHub
 git uncommit --one               # Legacy: soft-reset exactly one commit
+git uncommit --discard           # Drop stale review state and review current HEAD
+git uncommit --discard --dry-run # Preview without changing the saved review
 ```
+
+If HEAD moved since a review started, `--discard` replaces its restore point
+and prepares a fresh review from the current HEAD. It preserves staged, unstaged,
+untracked, and ignored files; it does not restore the old commits or delete files.
+The next `--restore` returns to the HEAD saved by this fresh review. You can combine
+`--discard` with `--base` for offline use, but not with `--restore` or `--one`.
+If resolving the base fails, the previous restore point is kept.
 
 `--one` does not create a review restore point and cannot be used during an active
 review. Automatic base detection requires an existing PR and network access;
