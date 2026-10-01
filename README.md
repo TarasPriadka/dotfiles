@@ -70,63 +70,38 @@ For a single plain frame, pipe any program to a file, for example
 
 ## Reviewing a branch with git uncommit
 
-`git uncommit` stages the combined changes from all commits on the current
-branch, including branches with merges. It asks GitHub for the PR's target
-branch, fetches that branch, and soft-resets to its merge base with `HEAD`.
-Stacked PRs use their own target branch rather than assuming `main`.
-On an existing machine, ensure Git, Python 3, curl, and the GitHub CLI (`gh`)
-are installed, then run:
+`git uncommit` soft-resets the current branch to its common ancestor with the
+PR's parent branch, leaving the branch's combined changes staged for review in
+your editor. For a stack `main → A → B → C`, running it on C compares against B.
+Existing staged, unstaged, untracked, and ignored files are preserved.
+
+```bash
+git uncommit                    # Use the current PR's parent branch
+git uncommit --base local-parent # Specify a local parent ref without GitHub
+```
+
+Automatic parent lookup requires an existing PR and an authenticated GitHub CLI
+(`gh`). It uses the parent's local `origin/<branch>` ref; it does not fetch.
+Run `git fetch origin` first if those refs need refreshing. If lookup fails, the
+command stops; use `--base` to choose the parent explicitly.
+
+There is no saved review state, restore mode, or cleanup. Old review metadata
+is ignored. The command only moves the local branch pointer; it does not push.
+
+To install or update (requires Git, Python 3, and curl):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TarasPriadka/dotfiles/main/programs/install.sh | bash
-gh auth login  # Only needed if this machine is not already authenticated
 ```
 
-The installer installs the helper and updates only `alias.uncommit` in
-`~/.gitconfig`, preserving your identity, signing settings, and other aliases.
-Run the same installer to update later. New machines running `setup.sh` get the
-dependencies, helper, and alias automatically; GitHub authentication is still
-a manual step. These downloads use the published `main` branch, so local changes
-must be committed and pushed there before other machines can install them.
-
-```bash
-git uncommit                 # Prepare the entire branch for review
-git diff --cached            # Review the combined diff
-git uncommit --restore       # Restore the original commits
-```
-
-The helper preserves the index and working files, including any existing staged,
-unstaged, or untracked edits. It saves the original commit in a private Git ref
-and records the review in the worktree's Git directory. Repeating `git uncommit`
-is a no-op while that review is active. Restore preserves edits made during the
-review; it refuses to overwrite new commits or restore onto a different branch.
-These are local operations; they do not push or change the PR on GitHub.
-
-```bash
-git uncommit --dry-run           # Preview the base and summary; still fetches
-git uncommit --base origin/main  # Use a local ref without contacting GitHub
-git uncommit --one               # Legacy: soft-reset exactly one commit
-git uncommit --discard           # Drop stale review state and review current HEAD
-git uncommit --discard --dry-run # Preview without changing the saved review
-```
-
-If HEAD moved since a review started, `--discard` replaces its restore point
-and prepares a fresh review from the current HEAD. It preserves staged, unstaged,
-untracked, and ignored files; it does not restore the old commits or delete files.
-The next `--restore` returns to the HEAD saved by this fresh review. You can combine
-`--discard` with `--base` for offline use, but not with `--restore` or `--one`.
-If resolving the base fails, the previous restore point is kept.
-
-`--one` does not create a review restore point and cannot be used during an active
-review. Automatic base detection requires an existing PR and network access;
-if it fails, the command stops instead of guessing a base. `--base` uses the
-locally available history, so refresh that reference first if needed. Finish
-any active merge, rebase, or cherry-pick before starting a review.
+The installer updates the helper and only `alias.uncommit` in `~/.gitconfig`,
+preserving your other Git settings. New machines get it through `setup.sh`.
+Run `gh auth login` if GitHub CLI authentication is needed.
 
 Run the helper's tests without network access:
 
 ```bash
-python3 -m unittest discover -s programs/tests -v
+python3 -m unittest discover -s programs/tests -p test_git_uncommit.py -v
 ```
 
 ## Sync Configs Only

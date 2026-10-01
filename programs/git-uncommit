@@ -1,217 +1,36 @@
 #!/usr/bin/env python3
-"""Stage a branch's combined PR diff, with a persistent restore point."""
-
-from __future__ import annotations
+"""Uncommit the current branch back to its PR's parent, preserving local files."""
 
 import argparse
-import fcntl
-import json
-import os
-from pathlib import Path
 import subprocess
 import sys
-from urllib.parse import urlsplit
-import uuid
-
-
-class UncommitError(Exception):
-    pass
 
 
 def run(*args: str) -> str:
-    result = subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = subprocess.run(args, text=True, capture_output=True)
     if result.returncode:
-        raise UncommitError(result.stderr.strip() or f"{' '.join(args)} failed")
+        raise RuntimeError(result.stderr.strip() or f"{' '.join(args)} failed")
     return result.stdout.strip()
-
-
-def git(*args: str) -> str:
-    return run("git", *args)
-
-
-def repository_identity(url: str) -> str:
-    if "://" not in url and ":" in url:
-        host, path = url.split(":", 1)
-        identity = host.rsplit("@", 1)[-1] + "/" + path
-    else:
-        parsed = urlsplit(url)
-        identity = parsed.netloc.rsplit("@", 1)[-1] + parsed.path
-    return identity.rstrip("/").removesuffix(".git").lower()
-
-
-def merge_base(head: str, base: str) -> str:
-    bases = git("merge-base", "--all", head, base).splitlines()
-    if len(bases) != 1:
-        raise UncommitError("Multiple merge bases; choose an explicit ancestor with --base.")
-    return bases[0]
-
-
-def resolve_target(head: str, explicit_base: str | None) -> tuple[str, str]:
-    if explicit_base:
-        base = git("rev-parse", "--verify", "--end-of-options", explicit_base + "^{commit}")
-        return merge_base(head, base), explicit_base
-
-    try:
-        pr = json.loads(run("gh", "pr", "view", "--json", "baseRefName,url"))
-    except (UncommitError, FileNotFoundError, ValueError) as error:
-        raise UncommitError(
-            f"Could not determine the PR target: {error}\n"
-            "Use git uncommit --base <local-ref> for an explicit, offline base."
-        ) from error
-    base_name = pr["baseRefName"]
-    repository_url = pr["url"].split("/pull/", 1)[0]
-    source = repository_url + ".git"
-    # Reuse the configured transport (including SSH) for the PR's base repository.
-    for remote in git("remote").splitlines():
-        if repository_identity(git("remote", "get-url", remote)) == repository_identity(
-            repository_url
-        ):
-            source = remote
-            break
-
-    temporary_ref = "refs/uncommit-fetch/" + uuid.uuid4().hex
-    print(f"Fetching PR target {base_name} from {source}...", flush=True)
-    try:
-        git(
-            "fetch",
-            "--no-tags",
-            "--no-prune",
-            "--no-prune-tags",
-            "--no-recurse-submodules",
-            "--no-write-fetch-head",
-            source,
-            f"refs/heads/{base_name}:{temporary_ref}",
-        )
-        return merge_base(head, temporary_ref), base_name
-    finally:
-        git("update-ref", "-d", temporary_ref)
-
-
-def check_repository() -> tuple[str, str, Path]:
-    branch = git("symbolic-ref", "--quiet", "HEAD")
-    head = git("rev-parse", "--verify", "HEAD")
-    git_dir = Path(git("rev-parse", "--absolute-git-dir"))
-    for operation in (
-        "MERGE_HEAD",
-        "CHERRY_PICK_HEAD",
-        "REVERT_HEAD",
-        "rebase-merge",
-        "rebase-apply",
-        "sequencer",
-    ):
-        if (git_dir / operation).exists():
-            raise UncommitError(
-                "Finish the active merge, rebase, or cherry-pick before uncommitting."
-            )
-    if git("ls-files", "--unmerged"):
-        raise UncommitError("Resolve the unmerged index before uncommitting.")
-    return branch, head, git_dir
-
-
-def review(args: argparse.Namespace) -> None:
-    branch, head, git_dir = check_repository()
-    state_path = git_dir / "uncommit-state.json"
-    with (git_dir / "uncommit.lock").open("w") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        state = json.loads(state_path.read_text()) if state_path.exists() else None
-        discarded_state = state if args.discard else None
-        if args.discard:
-            state = None
-        if state:
-            if state["branch"] != branch:
-                raise UncommitError(
-                    f"An active review belongs to {state['branch']}; switch back to restore it."
-                )
-            if head not in (state["target"], state["original"]):
-                raise UncommitError(
-                    "HEAD moved since the review started; leaving the saved history intact.\n"
-                    f"Original commits are saved at {state['backup_ref']}.\n"
-                    "Use git uncommit --discard to replace the saved review, preserving edits."
-                )
-            if args.restore:
-                if git("rev-parse", "--verify", state["backup_ref"]) != state["original"]:
-                    raise UncommitError("The saved reference changed; refusing to restore it.")
-                git("reset", "--soft", state["original"])
-                state_path.unlink()
-                git("update-ref", "-d", state["backup_ref"], state["original"])
-                print("Restored original commits; index and working files preserved.")
-                return
-            if args.one or args.base:
-                raise UncommitError("A review is already active. Use git uncommit --restore first.")
-            print("Review already prepared. Use git diff --cached or git uncommit --restore.")
-            return
-
-        if args.restore:
-            raise UncommitError("No saved review to restore in this worktree.")
-        if args.one:
-            git("reset", "--soft", "HEAD~1")
-            print("Uncommitted one commit; index and working files preserved.")
-            return
-
-        target, base_label = resolve_target(head, args.base)
-        if git("rev-parse", "HEAD") != head or git("symbolic-ref", "HEAD") != branch:
-            raise UncommitError("HEAD changed while resolving the base; retry the command.")
-        if discarded_state:
-            if args.dry_run:
-                print(f"Would discard the saved review for {discarded_state['branch']}.")
-            else:
-                git("update-ref", "-d", discarded_state["backup_ref"], discarded_state["original"])
-                state_path.unlink()
-                print(f"Discarded the saved review for {discarded_state['branch']}.")
-        if target == head:
-            print("No branch commits to uncommit relative to " + base_label + ".")
-            return
-        if args.dry_run:
-            print(
-                f"Would soft-reset {branch} from {head[:12]} to {target[:12]} (base: {base_label})."
-            )
-            print(git("diff", "--stat", target, head))
-            return
-
-        backup_ref = "refs/uncommit/" + uuid.uuid4().hex
-        git("update-ref", backup_ref, head, "0" * len(head))
-        state = {"branch": branch, "original": head, "target": target, "backup_ref": backup_ref}
-        temporary_state = state_path.with_suffix(".tmp")
-        temporary_state.write_text(json.dumps(state) + "\n")
-        os.replace(temporary_state, state_path)
-        git("reset", "--soft", target)
-        print(f"Staged combined changes against {base_label} ({target[:12]}).")
-        print(
-            "Use git diff --cached to review; git uncommit --restore restores the original commits."
-        )
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    modes = parser.add_mutually_exclusive_group()
-    modes.add_argument(
-        "--one", action="store_true", help="undo one commit, using the legacy soft reset"
-    )
-    modes.add_argument(
-        "--restore", action="store_true", help="restore the saved pre-review commits"
-    )
-    modes.add_argument(
-        "--base", metavar="REF", help="use a local base reference without contacting GitHub"
-    )
-    parser.add_argument(
-        "--discard",
-        action="store_true",
-        help="replace the saved review with one from current HEAD, preserving all local edits",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="resolve the base and show the diff summary without resetting",
-    )
+    parser.add_argument("--base", metavar="REF", help="use a local base ref instead of the PR target")
     args = parser.parse_args()
-    if args.discard and (args.one or args.restore):
-        parser.error("--discard cannot be combined with --one or --restore")
-    if args.dry_run and (args.one or args.restore):
-        parser.error("--dry-run cannot be combined with --one or --restore")
     try:
-        review(args)
-    except (UncommitError, OSError, ValueError) as error:
+        base = args.base
+        if not base:
+            parent = run("gh", "pr", "view", "--json", "baseRefName", "--jq", ".baseRefName")
+            base = "origin/" + parent
+        target = run("git", "merge-base", "--", "HEAD", base)
+        if target == run("git", "rev-parse", "HEAD"):
+            print(f"No branch commits to uncommit against {base}.")
+            return 0
+        run("git", "reset", "--soft", target)
+        print(f"Uncommitted branch changes against {base}; local edits preserved.")
+    except (RuntimeError, OSError) as error:
         print(f"git uncommit: {error}", file=sys.stderr)
+        print("Use --base <local-ref> to specify the parent branch explicitly.", file=sys.stderr)
         return 1
     return 0
 
