@@ -78,7 +78,12 @@ Existing staged, unstaged, untracked, and ignored files are preserved.
 ```bash
 git uncommit                    # Use the current PR's parent branch
 git uncommit --base local-parent # Specify a local parent ref without GitHub
+git uncommit --one               # Uncommit only the latest commit without GitHub
 ```
+
+`--one` soft-resets to the latest commit's first parent, preserving local edits
+and leaving the uncommitted changes staged. Each invocation removes one commit;
+it cannot be combined with `--base` and fails without changes at the root commit.
 
 Automatic parent lookup requires an existing PR and an authenticated GitHub CLI
 (`gh`). It uses the parent's local `origin/<branch>` ref; it does not fetch.

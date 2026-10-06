@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Uncommit the current branch back to its PR's parent, preserving local files."""
+"""Uncommit the current branch to its PR's parent or by one commit, preserving local files."""
 
 import argparse
 import subprocess
@@ -15,22 +15,30 @@ def run(*args: str) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base", metavar="REF", help="use a local base ref instead of the PR target")
+    target_options = parser.add_mutually_exclusive_group()
+    target_options.add_argument("--base", metavar="REF", help="use a local base ref instead of the PR target")
+    target_options.add_argument("--one", action="store_true", help="uncommit only the latest commit, without GitHub")
     args = parser.parse_args()
     try:
-        base = args.base
-        if not base:
-            parent = run("gh", "pr", "view", "--json", "baseRefName", "--jq", ".baseRefName")
-            base = "origin/" + parent
-        target = run("git", "merge-base", "--", "HEAD", base)
-        if target == run("git", "rev-parse", "HEAD"):
-            print(f"No branch commits to uncommit against {base}.")
-            return 0
+        if args.one:
+            target = run("git", "rev-parse", "--verify", "HEAD^1")
+            message = "Uncommitted the latest commit; local edits preserved."
+        else:
+            base = args.base
+            if not base:
+                parent = run("gh", "pr", "view", "--json", "baseRefName", "--jq", ".baseRefName")
+                base = "origin/" + parent
+            target = run("git", "merge-base", "--", "HEAD", base)
+            if target == run("git", "rev-parse", "HEAD"):
+                print(f"No branch commits to uncommit against {base}.")
+                return 0
+            message = f"Uncommitted branch changes against {base}; local edits preserved."
         run("git", "reset", "--soft", target)
-        print(f"Uncommitted branch changes against {base}; local edits preserved.")
+        print(message)
     except (RuntimeError, OSError) as error:
         print(f"git uncommit: {error}", file=sys.stderr)
-        print("Use --base <local-ref> to specify the parent branch explicitly.", file=sys.stderr)
+        if not args.one:
+            print("Use --base <local-ref> to specify the parent branch explicitly.", file=sys.stderr)
         return 1
     return 0
 

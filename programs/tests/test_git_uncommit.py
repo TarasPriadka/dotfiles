@@ -69,6 +69,57 @@ class UncommitTest(unittest.TestCase):
         self.assertFalse(self.state().exists())
         self.assertEqual(self.git("for-each-ref", "--format=%(refname)", "refs/uncommit/"), "")
 
+    def test_one_uncommits_only_latest_commit_without_github(self):
+        self.fake_github(fail=True)
+        parent = self.git("rev-parse", "HEAD^1")
+        self.git("uncommit", "--one")
+        self.assertEqual(self.git("rev-parse", "HEAD"), parent)
+        self.assertEqual(self.git("diff", "--cached", "--name-only"), "two")
+        self.assertEqual(self.git("rev-parse", "ORIG_HEAD"), self.original)
+        self.git("uncommit", "--one")
+        self.assertEqual(self.git("rev-parse", "HEAD"), self.base)
+        self.assertEqual(self.git("diff", "--cached", "--name-only"), "one\ntwo")
+
+    def test_one_preserves_local_edits(self):
+        (self.repo / "one").write_text("staged")
+        self.git("add", "one")
+        (self.repo / "one").write_text("unstaged")
+        (self.repo / "untracked").write_text("untracked")
+        (self.repo / ".gitignore").write_text("ignored\n")
+        (self.repo / "ignored").write_text("ignored")
+        index = self.git("write-tree")
+        parent = self.git("rev-parse", "HEAD^1")
+        self.git("uncommit", "--one")
+        self.assertEqual(self.git("rev-parse", "HEAD"), parent)
+        self.assertEqual(self.git("write-tree"), index)
+        self.assertEqual((self.repo / "one").read_text(), "unstaged")
+        self.assertEqual((self.repo / "untracked").read_text(), "untracked")
+        self.assertEqual((self.repo / "ignored").read_text(), "ignored")
+
+    def test_one_uses_first_parent_of_merge(self):
+        self.git("checkout", "main")
+        self.commit("upstream", "upstream")
+        self.git("checkout", "feature")
+        self.git("merge", "--no-ff", "main", "-m", "merge main")
+        self.git("uncommit", "--one")
+        self.assertEqual(self.git("rev-parse", "HEAD"), self.original)
+        self.assertEqual(self.git("diff", "--cached", "--name-only"), "upstream")
+
+    def test_one_rejects_base_without_changing_history(self):
+        result = self.git("uncommit", "--one", "--base", "main", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("not allowed with argument", result.stderr)
+        self.assertEqual(self.git("rev-parse", "HEAD"), self.original)
+        self.assertEqual(self.git("status", "--porcelain"), "")
+
+    def test_one_at_root_leaves_history_unchanged(self):
+        self.git("checkout", "main")
+        result = self.git("uncommit", "--one", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("--base", result.stderr)
+        self.assertEqual(self.git("rev-parse", "HEAD"), self.base)
+        self.assertEqual(self.git("status", "--porcelain"), "")
+
     def test_stacked_pr_uses_its_parent(self):
         self.git("branch", "stack-parent", "HEAD~1")
         self.fake_github("stack-parent")
