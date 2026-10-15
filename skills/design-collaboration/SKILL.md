@@ -96,6 +96,12 @@ discarding its correctness properties.
 - Distinguish required behavior today, capabilities that should remain possible
   later, and deferred work. Future flexibility does not automatically
   require a present abstraction.
+- When components appear coupled, identify the exact information or guarantee
+  creating the dependency. Distinguish the required agreement from choices about
+  shared code, execution order, deployment, and team ownership. A consumer may
+  need metadata about a result before it needs the computation itself; establish
+  whether that metadata can be obtained independently. Preserve shared semantics
+  when proposing an adapter: translating fields alone may not preserve correctness.
 - For each type or layer, ask what responsibility or concept it adds. A layer
   that only forwards calls or connects other layers should justify the reading
   and maintenance burden it creates.

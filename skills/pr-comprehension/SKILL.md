@@ -4,7 +4,7 @@ description: >
   Help someone comprehend one pull request, branch, or diff. Trigger when the
   user says "help me comprehend this PR", asks to understand a PR, or requests
   an explanation of a change. Build a source-backed mental model of its need,
-  before/after behavior, concrete flow, and limits, with links to the code.
+  before/after behavior and limits through a concrete walkthrough, with code links.
   Publish a PR comment only when the user explicitly asks.
 ---
 
@@ -14,7 +14,8 @@ Help an engineer unfamiliar with a change understand why it exists, how it
 works, and where to inspect it. The reader should be able to retell the need,
 follow a representative input through the change, and predict its result
 without reconstructing the diff. Explain relationships and behavior rather
-than listing edited files.
+than listing edited files. Make the first response the walkthrough the reader
+would otherwise have to ask for.
 
 ## Scope
 
@@ -27,6 +28,10 @@ than listing edited files.
 - Return the explanation in the conversation. Post a PR comment only when the
   user explicitly asks. Do not create report or evidence files.
 - Do not edit code, stage, commit, or switch branches over the user's work.
+
+If the user explicitly borrows this skill for a design or another non-PR
+explanation, use its concrete walkthrough method within that task. Do not select
+a diff or add PR-specific headings and revision metadata without a PR target.
 
 Read [operations.md](operations.md) before gathering PR data. Read
 [examples.md](examples.md) before writing the first explanation in a run.
@@ -67,73 +72,75 @@ of smoothing them over in prose. Keep evidence locations and uncertainties in
 working context; do not create a separate artifact. Stop expanding the search
 when the central behavior is supported and consequential unknowns are explicit.
 
-## Map and trace the structure
+## Build the explanation around a walkthrough
 
-Put one compact structural visual at the center of the explanation. Choose a form
-that matches the relationship:
+Choose a representative request, operation, or development task that exposes
+why this change matters. Walk from its starting situation through the relevant
+steps to its result. At each consequential step, explain what happens, why the
+next step follows, and where the behavior differs from before. Introduce
+components and terminology when the walkthrough needs them; a component
+inventory or benefit summary does not substitute for execution.
 
-| Relationship | Useful form |
-| --- | --- |
-| Containment or configuration | Annotated tree |
-| Ordering or control flow | Connected flow with branches |
-| Transformation | Inputs → processing → output |
-| Ownership or lifetime | Owners and labeled transfer/release arrows |
-| State transitions | States connected by events |
+Use concrete, illustrative values when they help. Include the relevant initial
+state and resulting response or state. Distinguish constructing, queueing,
+sending, accepting, and applying work; an asynchronous handoff is not completion.
+Preserve conditions, ordering, concurrency, and consequential failure paths.
+Focus on the path that explains this change rather than retelling the system.
 
-Use a fenced `text` tree or flow by default; use Mermaid when branching or
-structure needs it and the output surface renders it. Indentation means
-containment; arrows must represent a specific flow, dependency, or transfer.
-For a change spanning several components, give the relevant components short,
-stable labels and reuse those labels in the trace and source notes. Show the
-boundary crossed by each important arrow: sender, receiver, action or payload,
-and transport when it matters. Include a return, callback, or rejection path
-when it changes the outcome. Do not skip a meaningful intermediary just to make
-the map look simpler. Show where new pieces join existing ones, and separate
-behavior implemented now from a future connection. A file tree or list of
-types alone is insufficient. For a tiny change, two short before/after flows
-can be the entire visual.
+For a refactor, distinguish structural or ownership changes from observable
+behavior. Explain the maintenance problem and walk through the relevant path
+before and after, identifying what is intended to remain equivalent and what
+evidence supports that. Do not attribute existing capabilities or possible
+future benefits to this PR. For configuration-only work, show how the new
+configuration is constructed or used and where runtime integration stops.
 
-Trace one concrete example through that same map when the behavior needs more
-than the visual alone. State the starting input and relevant state, what each
-changed boundary does, and the final state or response. Mark example values as
-illustrative. Distinguish constructing, queueing, sending, accepting, and
-applying work when those stages differ. Preserve relevant conditions, ordering,
-and concurrency; do not imply that an asynchronous handoff has completed.
-Explain behavior before naming its helper. Link the code that establishes the
-important transition, not just the file containing its data type. Use a tiny
-annotated excerpt only when the transition remains hard to see from the map and
-source link; annotate state changes rather than every line of syntax.
+Support the walkthrough with one compact structural visual. Choose a form that
+fits the relationship: a flow for execution or transformation, a tree for
+containment, ownership arrows for transfers, or states connected by events.
+Use fenced `text` by default; use Mermaid when structure needs it and the surface
+renders it. For a tiny change, two short before/after flows may be the entire
+walkthrough. Do not repeat a complete visual in prose just to fill a section.
 
-## Write and verify
+Give components short, stable labels. Indentation means containment; arrows
+represent a specific flow, dependency, or transfer. Show the sender, receiver,
+and action or payload at important boundaries, including transport when relevant.
+Include returns, callbacks, and rejections when they change the outcome. Keep
+meaningful intermediaries visible and distinguish new pieces, existing behavior,
+and future connections.
 
+Link the code establishing consequential transitions, not just declarations.
+Explain behavior before naming its helper. Use a small annotated excerpt only
+when the transition remains hard to understand from the walkthrough and link;
+annotate state changes rather than every line of syntax.
+
+## Compose and verify
+
+Build your understanding broadly enough to support the explanation, then select
+what this reader needs. Investigation notes are source material, not the output.
 Use this order unless the user asks for another format:
 
 1. `## PR Comprehension`.
-2. One or two sentences stating the need, old limitation, and contribution.
-3. The structural visual.
-4. A short trace or notes for behavior, prerequisites, or scope the visual
-   cannot show. Connect consequential transitions to the code that supports
-   them, and say why each linked location is useful.
-5. Material limitations or unresolved questions, if any.
+2. One or two sentences stating the need and this change's contribution.
+3. The representative walkthrough, with its supporting visual and source links.
+4. Material prerequisites, limitations, or unresolved questions not already clear
+   from that walkthrough.
 
-Use as much space as the change needs to explain its mechanism and important
-boundary; keep small changes short. Add no section just to fill a template.
-State what the evidence supports, with qualifiers. Use revision-pinned links
-for published code and local file links for uncommitted work. Mention tests
-when their assertions clarify important behavior, and say
-whether you inspected or ran them. Do not claim a behavior is absent merely
-because a search did not find it.
+Scale to the change; add no section just to fill a template. Use revision-pinned
+links for published code and local links for uncommitted work. Mention tests when
+their assertions clarify behavior, distinguishing inspection from execution.
+Do not infer absent behavior from an unsuccessful search.
 
-Read the draft as someone who has not seen the investigation. Using only the
-draft, can that reader explain the need, central concepts, representative flow,
-resulting state, and current boundary? Can the visual alone show the main
-pieces and their relationships? Can they tell which source locations explain
-the consequential transitions? Revise missing connections. Check each arrow
-and trace step against its source, including return and error paths. Recheck
-important claims, especially words such as "only," "always," and "unchanged."
-Cut lines that do not add a relationship, evidence, necessary context, or useful
-navigation; qualify unsupported claims. End with a compact footer containing
-the examined revision, stack context if needed, and material limitations.
+Read the draft without relying on your investigation context. Can the reader
+predict what happens next at each consequential step and explain why? Can they
+identify where this change matters and distinguish it from existing behavior?
+If they can only name components or repeat the benefit, rebuild the explanation
+around the missing transitions instead of adding another summary.
+
+Check the walkthrough and visual against their sources, including consequential
+return and error paths. Recheck claims such as "only," "always," and "unchanged."
+Retain necessary reasoning and qualifications while removing investigation history
+and duplicate explanations. End with a compact footer containing the examined
+revision, stack context if needed, and any remaining evidence limitations.
 
 ## Publish only when requested
 

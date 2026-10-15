@@ -2,25 +2,58 @@
 name: technical-writing
 description: >
   Write and revise technical explanations, design documents, team updates,
-  experiment reports, and engineering feedback for human readers. Use when
+  experiment reports, engineering feedback, and agent handoffs. Use when
   drafting technical communication or making it clearer, easier to follow,
-  more natural, or less LLM-like. Teaches writing judgment and a deliberate
-  self-editing pass while adapting structure to the audience and purpose.
+  more natural, or less LLM-like. Develop the material broadly, then compose
+  and critique an explanation for the recipient's purpose and background.
 ---
 
 # Technical writing
 
-Reader comprehension is costly. Spend effort resolving meaning and relationships
-so the reader does not have to reconstruct them. Effective writing lets its
-intended reader understand the point, follow the explanation, and use it to
-reason or act. A short passage that is hard to follow has missed the goal.
+The writer's understanding and the reader's explanation are different products.
+Develop enough understanding to reason correctly, then select and sequence what
+the recipient needs to understand, decide, or act. Optimize for useful
+understanding per unit of reader effort. Dense shorthand may save tokens while
+making the explanation harder to follow.
 
 Infer the audience, purpose, and medium from the request and available context.
 Honor the user's chosen format and voice. Ask only when a missing detail would
-materially change the writing. This skill supplies quality standards, not a
-document outline: choose structure, length, tone, and supporting material for
-the task. It can complement a task-specific skill without replacing that skill's
+materially change the writing. This skill supplies writing judgment, not a
+document outline. It complements task-specific skills without replacing their
 format or workflow. A narrow edit should remain narrow.
+
+## Develop the material, then compose for the reader
+
+For substantial writing, separate two kinds of work:
+
+1. **Develop the material.** Use an expansive working draft to establish the
+   relevant facts, mechanisms, dependencies, examples, alternatives, and
+   uncertainties. Writing exposes missing connections; resolve consequential
+   gaps from evidence or leave them explicit. Stay within the task's scope.
+   Breadth is useful when it develops understanding, not when it inventories
+   everything related to the topic.
+2. **Compose for the recipient.** Treat the working draft as source material.
+   Choose the central explanation and rebuild it in the order the reader needs.
+   Assume the reader has the appropriate background but does not share your
+   investigation history or implicit definitions. Retain what supports their
+   understanding or action. Be strict about removing repetition, detours, and
+   details that helped you learn but do not help them. Change the structure or
+   representation when needed, rather than merely shortening sentences.
+
+Preserve the reasoning, evidence, conditions, and uncertainty needed to assess
+the conclusion. A concrete example or an extra sentence explaining a dependency
+can be more useful than a shorter, denser claim. Do not replace omitted context
+with a conclusion the reader must accept on trust.
+
+Scale the process to the task; a sentence edit needs no elaborate first draft.
+Keep working drafts internal unless the user requests them. This process does
+not require separate files, extra agents, or an intermediate approval step.
+
+Apply the same judgment to agent handoffs. Give the recipient its objective,
+relevant findings and evidence, constraints, unresolved questions, and locations
+for further inspection. Preserve reasons behind consequential decisions; omit
+the exploration log unless it affects the next action. Do not assume another
+agent shares your context or make the handoff cryptic to save tokens.
 
 ## What effective writing does
 
@@ -105,6 +138,32 @@ These examples illustrate editing choices, not facts to reuse in another task.
 The revision explains why the order matters. It replaces a circular justification
 with a concrete dependency.
 
+**Rebuild the explanation around the reader's task.**
+
+Suppose a working draft has established these facts:
+
+> There is a tokenizer service. The API receives text. A worker processes the
+> request after the router selects it. We considered two tokenizer placements.
+> Cached pages are compared using token IDs. Tokenization therefore has to
+> finish before routing. Remote tokenization adds a call before selection.
+
+For a reader trying to understand the proposed request flow:
+
+```text
+Text request
+  → tokenizer returns token IDs
+  → router compares those IDs with cached pages and selects a worker
+  → selected worker processes the request
+```
+
+The tokenizer call must finish before worker selection, so its latency is part
+of the time spent before routing.
+
+The revision organizes the facts around execution and retains the consequential
+latency dependency. The placement discussion can be omitted for this reader;
+for a reader choosing a placement, the alternatives and tradeoff would matter.
+This changes the explanation's structure rather than polishing the inventory.
+
 **Translate a metric into its practical meaning.**
 
 > The throughput benefit was primarily latency-target goodput.
@@ -125,43 +184,28 @@ familiar with the metric may use its technical name, with the target stated.
 The revision describes the benefit and its boundary. It does not imply that
 isolating a process prevents request failures.
 
-## Give the draft a second read
+## Critique the reader-facing draft
 
-After drafting, deliberately reread from the intended reader's perspective.
-Assess what the words actually communicate using the background that reader can
-reasonably have. Do not mentally fill gaps with knowledge from the investigation.
-For a short edit, keep this pass proportionate to the changed passage and its
-context. Perform this check yourself; do not invoke a shadow reader or a separate
-agent as part of this skill.
+Read the composed explanation using only the background its recipient can
+reasonably have. Do not mentally fill gaps from the investigation. Perform this
+check yourself; do not invoke a shadow reader or a separate agent.
 
-- **Purpose:** Can the reader tell what this writing explains, proposes, or asks?
-- **Context:** Is necessary background present? Does a passage assume knowledge
-  available only in the conversation or investigation?
-- **Connections:** Can the reader follow the reasoning? Is a causal step,
-  dependency, or consequence missing?
-- **Concrete meaning:** Is it clear what happens, who does it, and why it matters?
-  Would a specific action or example resolve an abstraction?
-- **Terminology:** Are unfamiliar terms introduced when needed, names consistent,
-  and references such as "this" or "it" unambiguous?
-- **Interpretation:** Are quantities, units, comparisons, and relevant conditions
-  clear where they appear?
-- **Accuracy:** Does the wording preserve evidence, uncertainty, scope, and the
-  author's position? Did simplification strengthen a claim?
-- **Effort:** Where must the reader reread, jump backward, or keep too much context
-  in memory? Would reordering or supplying a connection help?
-- **Relevance:** Does each detail help understanding or action? Is anything
-  repeated, distracting, or included only to describe the writer's process?
-- **Naturalness:** Does the language explain something specific? Which phrases
-  add ceremony or emphasis without meaning?
+- **Purpose and path:** Can the reader identify the point and follow the steps
+  or reasoning to the result? Are concepts introduced when they become useful?
+- **Concrete meaning:** Is it clear what happens, who does it, and why? Are
+  unfamiliar terms explained and quantities given context, units, and a basis
+  for comparison?
+- **Fidelity:** Did selection or compression change the author's intent,
+  confidence, scope, or a condition that affects the conclusion? Are evidence
+  and uncertainty still distinguishable?
+- **Reader effort:** Where must the reader reconstruct a relationship, jump
+  backward, or hold too much context? Would an example, reordering, or a different
+  representation help more than another paragraph?
+- **Value:** Does each detail support understanding or action? Remove repetition,
+  ceremony, and investigation history that does not serve that purpose.
 
-Revise the passages that fail this check. Missing context may need a sentence;
-a tangled explanation may need reordering or a concrete example; an unsupported
-claim needs verification or qualification. Replace low-value detail with missing
-connections instead of automatically appending more explanation. After a
-substantial revision, reread the affected passage in context to check that the
-fix preserves meaning and flow.
-
-Keep the checklist and editing process internal. Deliver the improved writing
-in the requested form, with any material uncertainty the reader needs. Do not
-append a self-assessment, claim a reader test was passed, or add sections merely
-to demonstrate compliance with this skill.
+Rewrite passages that fail. A draft with the wrong organizing idea may need
+recomposition, not sentence polishing. After a substantial revision, check the
+affected explanation again for clarity and fidelity. Keep the critique internal;
+deliver the requested writing and material uncertainties, without a
+self-assessment or a claim that a reader test was passed.

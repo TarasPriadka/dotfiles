@@ -1,8 +1,8 @@
 # PR comprehension examples
 
-These examples show how to explain structure and scope. They are hypothetical.
+These hypothetical examples put a representative walkthrough at the center.
 Use links to inspected code in real explanations; never invent destinations.
-Each delivered explanation starts with `## PR Comprehension`.
+PR explanations start with `## PR Comprehension` unless another format is requested.
 
 ## Configuration preparing later work
 
@@ -71,3 +71,27 @@ the default. If older senders might explicitly transmit zero, state the
 conditional consequence and whether that sender behavior was verified. A test
 of the receiver establishes its new interpretation, not compatibility with
 senders that were not inspected.
+
+## Refactor preserving request behavior
+
+The dispatcher currently mixes request tracking with retry-delay calculation.
+This PR moves delay calculation into a policy object so those responsibilities
+can be maintained separately. It intends to preserve retry behavior.
+
+```text
+Example: request r7 fails with a retryable error on its first attempt.
+
+Before: dispatcher checks the error → computes 100 ms → schedules r7
+After:  dispatcher checks the error → policy returns 100 ms → dispatcher schedules r7
+```
+
+The dispatcher still decides whether to retry and owns scheduling. The policy
+now supplies the delay; it does not send requests or manage their lifetime.
+This request therefore follows the same retry schedule with a different owner
+for the calculation. A broader equivalence claim needs evidence for the other
+supported inputs, not just this example.
+
+Link the old calculation, its new policy implementation, and the dispatcher's
+call site. Describe the inputs actually covered by inspected tests. Do not claim
+this extraction improves throughput or adds configurable policies unless the
+change establishes those outcomes.
