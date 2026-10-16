@@ -1,109 +1,95 @@
 ---
 name: project-landing-page
 description: >
-  Create or revise a project landing page that makes the path to shipping easy
-  to see. Use for project kickoff docs, workstream trackers, delivery dashboards,
-  or plans that need ship gates, parallel work, integration points, deadlines,
-  and validation evidence. Works in Notion, Markdown, or another document tool.
+  Set up a project using self-contained templates for a Notion landing page,
+  an architecture overview, and a Linear project with milestones and tasks.
+  Use for project launches, staged workstream plans, or creating or revising
+  any of these artifacts independently. Also supports Markdown drafts.
 ---
 
-# Project landing page
+# Project setup
 
-Create a page someone can scan to answer: What must be true to ship? What can
-happen in parallel? Where does the work join? What evidence supports the date
-and the final decision?
+Make the project's outcome, stages, and parallel work easy to understand.
+Use the bundled templates as the default format; fill them with the user's
+project context. Keep descriptions short and leave detailed design to the
+people doing the work.
 
-## Build the model first
+## Choose the requested output
 
-- Read the conversation and any supplied project page, design, issues, or code.
-  Preserve existing decisions and distinguish completed work from proposed work.
-- Name the first shippable outcome. Separate required behavior from later
-  extensions. If the scope is uncertain, show the decision rather than silently
-  choosing it.
-- Map work as independent paths and the points where they join. Put parallel
-  paths at the same level. Within a path, order dependent steps in execution
-  order. A larger effort gets a parent item with short child tasks.
-- Identify the proof for each major outcome: a test, demo, integration run,
-  dashboard, experiment, or review. Include validation work from the start.
-- Keep the deadline and the current forecast distinct. Derive the forecast from
-  remaining dependencies and evidence; do not infer it from checkbox counts.
+| Request | Template |
+| --- | --- |
+| Landing page or workstream tracker | [Notion landing page](templates/notion-landing-page.md) |
+| Architecture or design overview | [Architecture](templates/architecture.md) |
+| Linear project, milestones, or issues | [Linear project](templates/linear-project.md) |
+| Full project setup | All three, unless the user narrows the scope |
 
-## Shape the page
+Read only the templates needed for the request. Each works independently;
+do not create companion documents or issues merely to fill a template.
+For a full setup, establish the stages and workstreams first, then use the
+same names and scope across artifacts. Publish only the outputs authorized
+by the user. A request for advice or a draft does not authorize publication.
 
-Adapt this structure to the project's size and the user's preferred format:
+## Use supplied context
 
-```text
-Goal and first ship scope
-Target date and current forecast
+- Start with the conversation. Preserve agreed decisions, exclusions, and
+  completed work. Distinguish proposals from settled behavior.
+- This skill supplies the format. Do not search for external examples,
+  templates, documents, or code unless the user supplies or requests them.
+  User-provided formats take precedence over the bundled defaults.
+- Inspect an existing destination before editing to preserve human changes
+  and avoid duplicate pages, milestones, or issues. Reading the destination
+  and tool usage instructions is not a request for broader research.
+- Omit reference sections and document links unless the user wants them.
+  No artifact requires a proposal, repository, or companion page to exist.
+- Ask for missing information only when it materially affects the next step.
+  Leave unresolved designs open; do not invent owners, dates, approvals,
+  performance numbers, or project status to fill placeholders.
 
-Ship gates
-  Short, observable outcomes with checkboxes
+## Establish stages and workstreams
 
-Checkpoints
-  A few dated or timeboxed proofs, including integration and validation
+- Stages describe priority and increasing capability. Workstreams describe
+  responsibilities that people can develop in parallel.
+- Stage 0 is a narrow but real end-to-end integration. Reduce supported
+  inputs or cases before bypassing essential components. Include the output
+  or response path. An integration milestone need not be release-ready.
+- Stage 1 fills out the core support. Stage 2 identifies postponed extensions.
+  Adjust the number or names of stages when the project calls for it.
+- Give each stage an observable completion condition, such as a live demo or
+  integration test. Put the work to reach it in workstream TODOs.
+- Make dependencies and integration points explicit. Independent workstreams
+  belong at the same level; dependent tasks are ordered within them.
+- Keep the tracker within the landing page by default. A separate tracker
+  should solve a concrete size or workflow problem, not duplicate the page.
+- Identify parallel work without assigning people unless assignments are
+  agreed. Keep target dates and forecasts distinct when either is included.
 
-Integration path
-  Build in parallel
-    Workstream A
-      Steps in order
-    Workstream B
-      Steps in order
-    Validation
-      Steps in order
-  Then join
-    Integration steps in order
-    Final comparison and ship decision
+## Fill the templates plainly
 
-Open decisions
-Later work
-Completed foundations and source docs, if useful
-```
-
-The ship gates are the front door. Keep them few enough to scan. Each gate
-states a result visible outside its implementation, such as "A configured
-policy routes a live request." The integration path holds the engineering
-steps needed to reach those results. Avoid duplicating a full issue list.
-
-## Write checkboxes that can be used
-
-- Use short, concrete labels. A reader should understand each item without
-  opening another page. Put necessary detail in a child item, not a long parent.
-- Make each item independently checkable. Prefer "Rebuild per-target state after
-  reconnect" to "Handle state and all edge cases."
-- Show a dependency by nesting or ordering tasks; do not place a dependent step
-  beside work that can proceed in parallel.
-- Check off an outcome only when its proof exists. Add the proof link or result
-  next to the item when available. A merged change alone may leave a live or
-  performance gate open.
-- Keep completed foundations accessible but visually quiet. Separate deferred
-  work from the path to the first ship.
-
-## Make validation part of the deliverable
-
-For projects that claim performance or quality improvements, plan for three
-forms of evidence:
-
-- **Operational view:** Show input/data health, decisions, outcomes, fallbacks,
-  and the cost of making each decision.
-- **Controlled comparison:** Fix the workload, environment, success limits, and
-  measurement rules before comparing a baseline with the new behavior. Include
-  failures, unfinished work, request classes, and repeated runs as appropriate.
-- **Final explanation:** Show where the new behavior wins, loses, and falls
-  back, with the limits of the evidence stated plainly.
-
-Choose the visualization tool that fits the environment. AI can help draft
-charts and surface anomalies, but retain the queries, data or run IDs,
-filtering rules, and denominators so readers can reproduce the result.
+- Use short sentences and concrete verbs. Explain what changes and why.
+  Avoid management vocabulary when a direct task description will do.
+- Give each workstream a short summary and independently checkable TODOs.
+  Prefer "Return text through the public API" to "Complete integration."
+- Keep architecture at the level of responsibilities, lifecycle, interfaces,
+  and guarantees. Protocol details can remain open for workstream design.
+- Use a simple diagram when it clarifies relationships or ordering. A small
+  timeline can explain overlapping work; label illustrative numbers clearly.
+- Match validation to the claim. A few end-to-end checks may suffice; a
+  performance claim also needs a baseline and representative measurements.
+  Distinguish expected behavior from measured results.
+- Check an item only when its outcome is supported by evidence. A merged
+  change alone does not prove live integration or performance.
+- Remove template instructions and unused optional sections from the output.
+  Keep unresolved architectural questions explicit rather than filling space.
 
 ## Publish and maintain
 
-- Use the destination the user chose. If asked for an outline, provide an
-  outline; publish only when asked. If asked for a new version, leave the old
-  page intact. Inspect an existing destination before editing it.
-- Link to task trackers and designs when useful, but make the landing page
-  understandable on its own. Do not create issues or duplicate task statuses
-  unless requested.
-- At each update, mark proven outcomes, identify the next integration proof,
-  revise the forecast, and surface decisions or blockers that changed it.
-- Return a link or path to the page and briefly state what changed and what
-  remains uncertain.
+- Use the chosen destination and preserve unrelated content, native child
+  pages, and human edits. Prefer targeted updates over full-page replacement.
+- For authorized Linear setup, derive issues from the agreed stages and
+  workstreams. Reuse existing issues; do not create a second tracking scheme.
+- When both Notion and Linear are used, keep Notion at workstream/outcome
+  level and Linear at execution-task level. Do not mirror every issue status.
+- Verify the saved structure after a substantial edit, including checkboxes,
+  nesting, diagrams, and any milestone or issue relationships.
+- Return the artifact links or paths and briefly state what changed and what
+  remains unresolved. Do not expand the project to fill the template.
