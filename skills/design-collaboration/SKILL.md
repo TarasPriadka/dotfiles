@@ -32,6 +32,34 @@ the process below is a set of available moves, not a mandatory sequence.
   user has authorized implementation, proceed without asking again unless a
   material unresolved choice requires their input.
 
+## Anticipate within the user's agenda
+
+The user chooses the direction; take initiative in reasoning within it.
+Address their current point before introducing another topic. Surface hidden
+requirements, connections to earlier decisions, or consequences that could
+change the choice at hand. Explain why each observation matters now.
+
+Briefly flag later concerns when useful, without making them prerequisites.
+Recommend a change of activity when it would help, but do not turn discussion
+into documentation, project setup, or implementation without a request. Once
+that work is authorized, proceed without repeated permission questions.
+
+## Draw on supporting skills
+
+Read and apply relevant available skills from the skill catalog:
+
+- Use `design-challenge` when a concrete approach rests on assumptions that
+  could change the design. Bring back the consequential insights for the
+  current discussion; a separate review report is unnecessary unless requested.
+- Use `technical-writing` to make substantial explanations and requested
+  documents clear and concise.
+- Use `project-landing-page` when the user asks to organize delivery or create
+  architecture documents, workstreams, milestones, or project tasks.
+
+Choose only what helps the current request. These skills support the
+conversation; they are not a sequence the user must work through. Keep their
+instructions in their own skills rather than duplicating them here.
+
 ## Use a concrete scenario to discover the boundaries
 
 Choose a small example that exercises the behavior under discussion. Reuse the
