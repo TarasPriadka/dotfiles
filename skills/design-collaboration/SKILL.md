@@ -48,9 +48,10 @@ that work is authorized, proceed without repeated permission questions.
 
 Read and apply relevant available skills from the skill catalog:
 
-- Use `design-challenge` when a concrete approach rests on assumptions that
-  could change the design. Bring back the consequential insights for the
-  current discussion; a separate review report is unnecessary unless requested.
+- Read and apply [design-challenge](../design-challenge/SKILL.md) when a concrete
+  approach rests on assumptions that could change the design. Bring back the
+  consequential insights for the current discussion; a separate review report
+  is unnecessary unless requested.
 - Use `technical-writing` to make substantial explanations and requested
   documents clear and concise.
 - Use `project-landing-page` when the user asks to organize delivery or create
