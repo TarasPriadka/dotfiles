@@ -10,12 +10,24 @@ description: >
 
 # PR comprehension
 
-Help an engineer unfamiliar with a change understand why it exists, how it
-works, and where to inspect it. The reader should be able to retell the need,
-follow a representative input through the change, and predict its result
-without reconstructing the diff. Explain relationships and behavior rather
-than listing edited files. Make the first response the walkthrough the reader
-would otherwise have to ask for.
+You own helping the reader understand this change. Your investigation gives you
+knowledge the reader does not have; your responsibility is to turn that knowledge
+into an explanation they can reason with. The reader should be able to retell
+the need, follow a representative input through the change, and recognize its
+limits without reconstructing the diff.
+
+Carry the work of deciding what context matters, finding the clearest organizing
+idea, and connecting concepts to concrete behavior. Use the guidance below to
+exercise that judgment. Completing its steps does not establish that the reader
+has a useful understanding.
+
+Treat your first explanation as a candidate. If it is accurate but difficult to
+follow, determine whether the problem is missing context, an unclear relationship,
+unnecessary detail, or the wrong organizing idea. Resolve what you can before
+delivery, including rebuilding the explanation when local edits would preserve
+the problem. Further revision should address a concrete shortcoming; ownership
+does not require endless polishing or a longer answer. Make the first response
+the walkthrough the reader would otherwise have to ask for.
 
 ## Scope
 
@@ -130,7 +142,9 @@ links for published code and local links for uncommitted work. Mention tests whe
 their assertions clarify behavior, distinguishing inspection from execution.
 Do not infer absent behavior from an unsuccessful search.
 
-Read the draft without relying on your investigation context. Can the reader
+Before handing the explanation over, identify what the reader would still have
+to reconstruct and address consequential gaps. Read the draft without relying
+on your investigation context. Can the reader
 predict what happens next at each consequential step and explain why? Can they
 identify where this change matters and distinguish it from existing behavior?
 If they can only name components or repeat the benefit, rebuild the explanation
