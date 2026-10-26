@@ -1,0 +1,1 @@
+Continue the cache cleanup task from its saved record and implement the agreed dry-run behavior. Verify library and CLI behavior. Keep changes local; do not commit or publish.

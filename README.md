@@ -17,24 +17,37 @@ The script will:
 
 After running, add both keys to GitHub and run `exec zsh`.
 
-## Personal Codex skills
+## Personal Codex workflow
 
-This repo keeps personal skills under `skills/<skill-name>/SKILL.md`. Install
-them on any Linux machine without cloning the repo:
+Install the default working guide and personal skills on a Linux machine without
+cloning this repository:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TarasPriadka/dotfiles/main/skills/install.sh | bash
 ```
 
-The installer downloads the public repo archive, keeps only its skill folders
-under `~/.local/share/dotfiles-skills/`, and links them into
-`~/.agents/skills/`. An hourly user-level systemd timer downloads a fresh
-archive and updates that cache. It does not need a Git checkout. Existing
-skills with the same names are left alone unless they were installed by this
-script. Codex discovers the linked skills from any local repo. If an updated
-skill does not appear immediately, restart Codex.
+The normal `setup.sh` already runs this installer. On an existing machine, rerun
+the command once to upgrade the old skills-only updater.
 
-The main `setup.sh` downloads and runs this installer as part of setup.
+The installer links `~/.codex/AGENTS.md` and `~/.agents/skills/` to a shared release
+under `~/.local/share/dotfiles-skills/`. New Codex sessions receive the ownership
+and collaboration defaults automatically and select `engineering-work` for
+substantive tasks. You can describe the task normally without naming skills.
+The working method covers investigation, design, simplification, execution,
+verification, delivery, and durable work records when needed.
+
+An hourly user-level systemd timer updates the guide and skills from the same
+archive. A failed download or incomplete framework leaves the prior release
+active. The old dotfiles checkout pilot links are migrated together. Unrelated
+personal guides, overrides, or conflicting `engineering-work` installations are
+preserved and reported as conflicts; other custom skills are left alone.
+
+For a custom Codex directory, set `DOTFILES_CODEX_HOME` when installing. The
+updater remembers it for subsequent timer runs. `CODEX_HOME` is used on the
+first normal installation when no saved location exists. Restart Codex after
+installing to load the new default guide.
+
+See [the framework guide](agents/README.md) for development and evaluation.
 
 ## Terminal programs
 

@@ -1,5 +1,5 @@
 [Unit]
-Description=Update personal Codex skills hourly
+Description=Update the personal Codex guide and skills hourly
 
 [Timer]
 OnCalendar=hourly

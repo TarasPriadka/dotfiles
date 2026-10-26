@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+command -v flock >/dev/null || { echo "This Linux installer requires flock (util-linux)." >&2; exit 1; }
+
 raw_base="${DOTFILES_SKILLS_RAW_BASE:-https://raw.githubusercontent.com/TarasPriadka/dotfiles/main}"
 user_home="${DOTFILES_SKILLS_HOME:-$HOME}"
 local_bin_dir="$user_home/.local/bin"
@@ -30,10 +32,10 @@ install -m 644 "$download_dir/dotfiles-skills-sync.timer" "$user_units_dir/"
 if command -v systemctl >/dev/null 2>&1; then
     if systemctl --user daemon-reload; then
         systemctl --user enable --now dotfiles-skills-sync.timer
-        echo "Hourly personal skill updates enabled"
+        echo "Default Codex workflow installed; hourly guide and skill updates enabled"
     else
-        echo "Skills installed; user systemd is unavailable, so the timer was not enabled" >&2
+        echo "Default Codex workflow installed; user systemd is unavailable, so the timer was not enabled" >&2
     fi
 else
-    echo "Skills installed; systemd is unavailable, so the timer was not enabled" >&2
+    echo "Default Codex workflow installed; systemd is unavailable, so the timer was not enabled" >&2
 fi

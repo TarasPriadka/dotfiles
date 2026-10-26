@@ -7,46 +7,99 @@ cache_dir="$user_home/.local/share/dotfiles-skills"
 skills_dir="$user_home/.agents/skills"
 mkdir -p "$cache_dir/releases" "$skills_dir"
 
+# Serialize the timer and a manual installation against the same release pointer.
+exec 9> "$cache_dir/sync.lock"
+flock 9
+
+if [ -n "${DOTFILES_CODEX_HOME:-}" ]; then
+    codex_home="$DOTFILES_CODEX_HOME"
+elif [ -f "$cache_dir/codex-home" ]; then
+    IFS= read -r codex_home < "$cache_dir/codex-home"
+elif [ -n "${CODEX_HOME:-}" ] && [ -z "${DOTFILES_SKILLS_HOME:-}" ]; then
+    codex_home="$CODEX_HOME"
+else
+    codex_home="$user_home/.codex"
+fi
+case "$codex_home" in
+    /*) ;;
+    *) echo "Codex home must be an absolute path: $codex_home" >&2; exit 1 ;;
+esac
+
 if [ -e "$cache_dir/current" ] && [ ! -L "$cache_dir/current" ]; then
     echo "Refusing to replace $cache_dir/current: it is not a symlink" >&2
     exit 1
 fi
+old_release="$(readlink "$cache_dir/current" 2>/dev/null || true)"
+if [ -n "$old_release" ]; then
+    if [ "$(dirname -- "$old_release")" != "$cache_dir/releases" ] ||
+        [[ "$(basename -- "$old_release")" != skillset.* ]] ||
+        [ -L "$old_release" ]; then
+        echo "Refusing to replace an unmanaged cache pointer: $cache_dir/current" >&2
+        exit 1
+    fi
+fi
+
+# Both parts of the framework must be installable before advancing the cache.
+for destination in "$codex_home/AGENTS.md" "$skills_dir/engineering-work"; do
+    if [ "$destination" = "$codex_home/AGENTS.md" ]; then
+        managed_target="$cache_dir/current/AGENTS.md"
+        checkout_target="$user_home/code/dotfiles/agents/AGENTS.md"
+    else
+        managed_target="$cache_dir/current/engineering-work"
+        checkout_target="$user_home/code/dotfiles/skills/engineering-work"
+    fi
+    if [ -e "$destination" ] || [ -L "$destination" ]; then
+        existing_target="$(readlink "$destination" 2>/dev/null || true)"
+        if [ "$existing_target" != "$managed_target" ] && [ "$existing_target" != "$checkout_target" ]; then
+            echo "Refusing to replace $destination: it is not managed by dotfiles. Review it before installing." >&2
+            exit 1
+        fi
+    fi
+done
+if [ -e "$codex_home/AGENTS.override.md" ] || [ -L "$codex_home/AGENTS.override.md" ]; then
+    echo "Refusing to install beneath $codex_home/AGENTS.override.md: it may shadow the default guide." >&2
+    exit 1
+fi
+mkdir -p "$codex_home"
 
 download_dir="$(mktemp -d)"
 pending_release="$(mktemp -d "$cache_dir/releases/skillset.XXXXXXXX")"
 next_link="$cache_dir/.current.next.$$"
+next_config="$cache_dir/.codex-home.next.$$"
 cleanup() {
     rm -rf -- "$download_dir"
     if [ -n "$pending_release" ]; then
         rm -rf -- "$pending_release"
     fi
-    rm -f -- "$next_link"
+    rm -f -- "$next_link" "$next_config"
 }
 trap cleanup EXIT
 
 curl -fsSL --retry 2 "$archive_url" -o "$download_dir/dotfiles.tar.gz"
 tar -xzf "$download_dir/dotfiles.tar.gz" -C "$download_dir"
-source_dir="$download_dir/dotfiles-main/skills"
-if [ ! -d "$source_dir" ]; then
-    echo "The downloaded archive has no skills directory" >&2
-    exit 1
-fi
+source_root="$download_dir/dotfiles-main"
+for required in agents/AGENTS.md skills/engineering-work/SKILL.md skills/engineering-work/references/work-record.md; do
+    if [ ! -s "$source_root/$required" ]; then
+        echo "The downloaded framework is incomplete: missing or empty $required" >&2
+        exit 1
+    fi
+done
+cp "$source_root/agents/AGENTS.md" "$pending_release/AGENTS.md"
 
 skill_count=0
-for skill_dir in "$source_dir"/*; do
+for skill_dir in "$source_root/skills"/*; do
     [ -f "$skill_dir/SKILL.md" ] || continue
     cp -R "$skill_dir" "$pending_release/"
     skill_count=$((skill_count + 1))
 done
-if [ "$skill_count" -eq 0 ]; then
-    echo "The downloaded archive has no skills" >&2
-    exit 1
-fi
 
-old_release="$(readlink "$cache_dir/current" 2>/dev/null || true)"
+# The guide and skills all resolve through this one release pointer on updates.
 ln -s "$pending_release" "$next_link"
 mv -Tf -- "$next_link" "$cache_dir/current"
 pending_release=""
+ln -sfn "$cache_dir/current/AGENTS.md" "$codex_home/AGENTS.md"
+printf '%s\n' "$codex_home" > "$next_config"
+mv -f -- "$next_config" "$cache_dir/codex-home"
 
 for skill_dir in "$cache_dir/current"/*; do
     [ -f "$skill_dir/SKILL.md" ] || continue
@@ -71,21 +124,19 @@ for skill_dir in "$cache_dir/current"/*; do
     ln -s "$managed_target" "$skill_link"
 done
 
-case "$old_release" in
-    "$cache_dir"/releases/*)
-        for old_skill_dir in "$old_release"/*; do
-            [ -f "$old_skill_dir/SKILL.md" ] || continue
-            skill_name="$(basename "$old_skill_dir")"
-            if [ ! -e "$cache_dir/current/$skill_name/SKILL.md" ]; then
-                skill_link="$skills_dir/$skill_name"
-                if [ -L "$skill_link" ] &&
-                    [ "$(readlink "$skill_link")" = "$cache_dir/current/$skill_name" ]; then
-                    rm -- "$skill_link"
-                fi
+if [ -d "$old_release" ]; then
+    for old_skill_dir in "$old_release"/*; do
+        [ -f "$old_skill_dir/SKILL.md" ] || continue
+        skill_name="$(basename "$old_skill_dir")"
+        if [ ! -e "$cache_dir/current/$skill_name/SKILL.md" ]; then
+            skill_link="$skills_dir/$skill_name"
+            if [ -L "$skill_link" ] &&
+                [ "$(readlink "$skill_link")" = "$cache_dir/current/$skill_name" ]; then
+                rm -- "$skill_link"
             fi
-        done
-        rm -rf -- "$old_release"
-        ;;
-esac
+        fi
+    done
+    rm -rf -- "$old_release"
+fi
 
-echo "Updated $skill_count personal Codex skill(s)"
+echo "Updated the default Codex guide and $skill_count personal skill(s)"

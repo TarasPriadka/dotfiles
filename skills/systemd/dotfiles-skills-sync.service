@@ -1,5 +1,5 @@
 [Unit]
-Description=Update personal Codex skills from dotfiles
+Description=Update the personal Codex guide and skills from dotfiles
 
 [Service]
 Type=oneshot

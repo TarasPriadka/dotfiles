@@ -1,0 +1,1 @@
+Add a dry-run option so operators can see entries cleanup would remove without changing the cache. Preserve normal cleanup behavior and support the same option for Python callers. Investigate and propose only for now; leave a handoff for implementation in a fresh session. Do not implement or publish yet.
