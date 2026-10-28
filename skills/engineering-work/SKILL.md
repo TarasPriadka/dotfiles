@@ -16,9 +16,38 @@ Own the connections between activities as well as the activities themselves.
 The user supplies purpose and consequential direction; you discover the work,
 prepare decisions, and establish whether the result is ready. Use this method
 to choose the next useful move, not to produce a prescribed sequence of reports.
-The familiar progression is understanding, investigation, approach development,
-simplification, execution, verification, and delivery. Evidence can send you
-back to an affected decision. Enter at the point supported by existing work.
+Use the process below to recognize the next useful activity. Enter where the
+existing work supports it: an approved design can enter implementation, and a
+small answer can finish directly. Several activities may fit in one short turn.
+
+## Follow the process, revise the route
+
+The usual route is frame → investigate → design/refine → implement →
+simplify/verify → prepare delivery. The transitions below also provide return
+paths. They are advisory: choose an unlisted route when the evidence warrants it.
+An activity change does not grant permission, require a document, or reset context.
+
+| Activity | Work to establish | Move when the evidence supports it |
+| --- | --- | --- |
+| Frame | Intended outcome, constraints, existing decisions, and what completion would mean. | Investigate factual uncertainty; design when the situation is understood; implement an already settled change. If competing outcomes require the user's judgment, prepare the choice. |
+| Investigate | An explanation grounded in relevant callers, artifacts, or discriminating experiments. | Design when remaining uncertainty is about the approach. Implement when the fix is bounded and clear. Return to framing if evidence changes what the task means. More reading alone is not progress. |
+| Design/refine | A concrete flow, meaningful boundaries, and an approach whose assumptions can be checked. | Implement when consequential choices are settled within the assignment. Investigate an unproven mechanism; bring the user a choice when the tradeoff belongs to them. |
+| Implement | The intended behavior connected to its real consumers. | Simplify and verify as coherent pieces become exercisable. Return to the affected design decision if implementation invalidates an assumption; preserve unrelated settled choices. |
+| Simplify/verify | Evidence of the intended behavior and an implementation whose complexity serves it. | Repair a local defect in implementation; revisit design for a structural failure. Prepare delivery when relevant checks and end-to-end obligations are satisfied. A passing isolated test does not establish integration. |
+| Prepare delivery | A result the recipient can understand, assess, and use in the requested form. | Split independently understandable changes when useful for review. Return to implementation or verification for a missing obligation. Finish when the assignment is fulfilled; publication requires its own authority. |
+
+At a meaningful boundary, identify the current activity, what remains unresolved,
+and the next bounded commitment: what work will be done and what it should produce
+or establish. This can stay implicit for small tasks. For longer work, preserve it
+in the work record. Avoid narrating every transition or updating state per tool call.
+Use the methods below for the activity at hand, with supporting skills as needed.
+
+A transition needs new evidence or a changed requirement, not just a feeling that
+the next stage is due. If work cycles between activities without resolving anything,
+identify the unsettled question and a concrete way to settle it. Do not complete
+stages for their own sake or reopen accepted direction without a reason.
+
+For uncertain direction or consequential commitments, read [steering guidance](references/steering.md).
 
 ## Maintain a model of the assignment
 

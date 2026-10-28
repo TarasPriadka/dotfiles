@@ -33,6 +33,7 @@ class InstallTest(unittest.TestCase):
         (self.skill / "references").mkdir(parents=True)
         (self.skill / "SKILL.md").write_text("Engineering workflow\n")
         (self.skill / "references" / "work-record.md").write_text("Work record\n")
+        (self.skill / "references" / "steering.md").write_text("Steering\n")
         self.guide_link = self.home / ".codex" / "AGENTS.md"
         self.skill_link = self.home / ".agents" / "skills" / "engineering-work"
 
@@ -130,6 +131,11 @@ class InstallTest(unittest.TestCase):
         (self.skill / "references" / "work-record.md").unlink()
         result = self.run_installer(expected=1)
         self.assertIn("Missing source file", result.stderr)
+        self.assertEqual(list(self.home.iterdir()), [])
+
+    def test_missing_steering_blocks_all_changes(self):
+        (self.skill / "references" / "steering.md").unlink()
+        self.run_installer(expected=1)
         self.assertEqual(list(self.home.iterdir()), [])
 
     def test_non_directory_parent_blocks_all_changes(self):

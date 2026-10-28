@@ -4,7 +4,12 @@ The default guide establishes ownership and collaboration expectations. The
 engineering-work skill organizes substantive work and selects supporting skills.
 A compact work record carries the current model across sessions when useful.
 Ask for an outcome normally; you do not need to assemble the skills yourself.
-These are working instructions, not a background scheduler or a guarantee of quality.
+The engineering method now provides an advisory graph of activities and evidence
+for moving between them, with direct entry for settled work and return paths when
+an assumption fails. [Steering guidance](../skills/engineering-work/references/steering.md)
+helps choose the next bounded commitment and prepare consequential user decisions.
+Small tasks need no stage ceremony. These are experimental working instructions,
+not a background scheduler or a demonstrated improvement in agent quality.
 
 ## Install the defaults
 
@@ -89,3 +94,9 @@ and tool evidence as well as test results. Record instruction versions, model,
 observable cost, and user interventions; keep raw session logs local.
 Classify gaps as selection, method execution, or coordination. A bounded functional
 trial establishes feasibility, not a general improvement in reliability.
+
+The standalone `agent-workflow` repository contains the frozen baseline, process-only
+and process-plus-steering variants, and comparison tooling under `evals/`. Dotfiles
+distributes the candidate guidance; keep the experiment runner and its baseline in
+that repository. Record exact guidance hashes when comparing trials, since the
+hourly updater can change the active release.

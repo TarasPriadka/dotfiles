@@ -53,6 +53,7 @@ def install(checkout: Path, home: Path, codex_home: Path, uninstall: bool) -> in
         checkout / "agents" / "AGENTS.md",
         checkout / "skills" / "engineering-work" / "SKILL.md",
         checkout / "skills" / "engineering-work" / "references" / "work-record.md",
+        checkout / "skills" / "engineering-work" / "references" / "steering.md",
     )
     for source in required:
         if not source.is_file():

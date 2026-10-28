@@ -31,6 +31,7 @@ class SyncTest(unittest.TestCase):
             "agents/AGENTS.md": f"Guide {version}\n",
             "skills/engineering-work/SKILL.md": f"Workflow {version}\n",
             "skills/engineering-work/references/work-record.md": f"Record {version}\n",
+            "skills/engineering-work/references/steering.md": f"Steering {version}\n",
         }
         for name in extras:
             files[f"skills/{name}/SKILL.md"] = f"{name} {version}\n"
@@ -109,7 +110,8 @@ class SyncTest(unittest.TestCase):
         self.run_sync()
         previous = (self.cache / "current").resolve()
         for missing in ("agents/AGENTS.md", "skills/engineering-work/SKILL.md",
-                        "skills/engineering-work/references/work-record.md"):
+                        "skills/engineering-work/references/work-record.md",
+                        "skills/engineering-work/references/steering.md"):
             with self.subTest(missing=missing):
                 self.make_archive("v2", omit=missing)
                 self.run_sync(expected=1)

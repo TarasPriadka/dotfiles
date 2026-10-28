@@ -34,6 +34,19 @@ of the investigation.
 **Next:** Next useful action and its dependencies, or delivered outcome and limits.
 ```
 
+For substantial ongoing work, use **Next** to preserve the current activity and
+bounded commitment: the work to do, what it should establish, and the evidence or
+decision needed before moving on. For example: "Investigating: trace one failed
+request through decoding and routing to distinguish malformed input from a routing
+error. Then choose the affected implementation boundary." This is not a mandatory
+schema or a new record alongside the existing one. Omit it when the task is finished.
+
+Keep consequential user wording or a source reference separate from your current
+interpretation. Mark whether a correction changes the outcome, scope, approach,
+or merely clarifies it. Preserve earlier accepted constraints that still apply.
+Record requested checkpoints and delegated authority when they affect continuation;
+the activity label itself conveys no permission.
+
 For example, a small design handoff can preserve enough in this form:
 
 > **Assignment:** Reject invalid batch items without submitting a partial batch.

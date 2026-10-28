@@ -78,7 +78,7 @@ trap cleanup EXIT
 curl -fsSL --retry 2 "$archive_url" -o "$download_dir/dotfiles.tar.gz"
 tar -xzf "$download_dir/dotfiles.tar.gz" -C "$download_dir"
 source_root="$download_dir/dotfiles-main"
-for required in agents/AGENTS.md skills/engineering-work/SKILL.md skills/engineering-work/references/work-record.md; do
+for required in agents/AGENTS.md skills/engineering-work/SKILL.md skills/engineering-work/references/work-record.md skills/engineering-work/references/steering.md; do
     if [ ! -s "$source_root/$required" ]; then
         echo "The downloaded framework is incomplete: missing or empty $required" >&2
         exit 1
