@@ -51,6 +51,28 @@ preparatory change can be legitimate before its consumer exists; explain the
 concrete consumer it enables and establish that the intermediate state is safe.
 Do not invent a general abstraction simply to manufacture a foundation PR.
 
+## Choose boundaries that reduce review work
+
+Use these options where they make a review easier; they are not a required
+sequence or a quota of PRs:
+
+- **Refactoring:** separate substantial moves, renames, or restructuring from
+  behavior changes so preservation and new behavior can be assessed separately.
+  Small local cleanups can stay with the change. Establish missing coverage of
+  existing behavior before a risky refactor; keep tests of new behavior with
+  the behavior change.
+- **Vertical slices:** carry one narrow behavior through the layers it needs
+  when following the complete path makes correctness easiest to assess.
+- **Horizontal slices:** separate a contract or layer when its semantics can be
+  reviewed with concrete usage context. Include a representative consumer when
+  otherwise the interface's suitability would be speculative.
+- **Reviewer concerns:** separate self-contained concerns requiring different
+  expertise, such as infrastructure and application logic. Explain the agreement
+  between them so neither reviewer has to guess what the other part provides.
+
+Combine these options when useful, rather than automatically making one PR per
+layer or directory. This follows [Google's small-CL guidance](https://google.github.io/eng-practices/review/developer/small-cls.html).
+
 ## Choose review units and real dependencies
 
 A useful unit gives the reviewer one coherent change to reason about. Keep its
@@ -58,6 +80,9 @@ tests, generated bindings, and required build changes with it. A directory,
 language boundary, or line-count threshold alone does not define a review unit.
 Combine tightly coupled changes when splitting would require the reviewer to
 understand them together anyway or would leave an invalid intermediate state.
+Challenge a proposed split when each reviewer must reconstruct the same invariant
+across several PRs. A useful boundary reduces that burden without hiding the
+integration question; identify where the combined behavior will be verified.
 
 Start each unit from the intended integration branch unless a real prerequisite
 requires another base. Two changes are independent when each can build, satisfy
@@ -65,7 +90,23 @@ its contract, and be safely accepted without the other. Shared files may create
 an integration conflict without creating an architectural dependency. Conversely,
 disjoint files may depend on the same new contract.
 
-Use the shape the evidence supports:
+Distinguish review order, code prerequisites, and rollout prerequisites. Reviewers
+can assess dependent PRs concurrently once their shared contract is sufficiently
+settled, even though merging requires an order. Conversely, code can compile without infrastructure
+or a compatible service version that must exist before activation. Record what
+must be merged, deployed, or confirmed operational before each step is safe.
+A rollout dependency alone does not require a stacked branch if the code can
+land safely while inactive; if merging activates it, that prerequisite gates
+merging too.
+
+For incompatible interfaces or schemas, consider
+[expand, migrate, then contract](https://martinfowler.com/bliki/ParallelChange.html):
+add support alongside the old contract, move consumers, then remove old support
+once migration is established. State the evidence required before cleanup,
+including deployed consumers when relevant. Compatibility scaffolding has a cost;
+use it when needed for safe transition, rather than just to create smaller PRs.
+
+Choose the branch shape from the code prerequisites:
 
 - **Independent roots:** both target the integration branch and can be reviewed
   and landed independently. Do not stack one on the other merely because it was
@@ -95,7 +136,10 @@ this shape. If both introduce a shared new representation, that representation
 is a real prerequisite and changes the breakdown.
 
 Explain the proposed shape compactly before substantial extraction: each PR's
-purpose, its base and actual prerequisites, and what can land independently.
+review decision, relevant reviewer expertise, base and actual prerequisites,
+and how it will be verified. Make clear what can land independently and what
+remains inactive or awaits deployment. Explain consequential boundaries, without
+requiring a separate reviewer for every concern or a fixed proposal template.
 Name any tradeoff involving compatibility work, deferred publication, or costly
 restructuring. Proceed within the user's existing authorization; obtain direction
 when the choice materially changes the agreed delivery or design.
@@ -110,8 +154,11 @@ staging, and branch conventions. Keep temporary extraction artifacts out of PRs.
 Validate each unit on the base its reviewer will see. Passing tests on the full
 development branch does not establish that an extracted foundation works alone.
 Run the relevant checks for each unit and integration checks for the combined
-outcome. Follow required repository checks, and reuse still-valid evidence rather
-than rerunning unchanged checks without reason.
+outcome. Where versions coexist during rollout, check the compatibility relied
+on at that boundary; a successful build does not establish deployed readiness.
+Report unverified rollout conditions as prerequisites, rather than implying that
+local validation established them. Follow required repository checks, and reuse
+still-valid evidence rather than rerunning unchanged checks without reason.
 
 Check both the individual comparisons and the assembled result. Every intended
 source change should be accounted for, prerequisites should not be duplicated
