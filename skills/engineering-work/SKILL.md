@@ -89,11 +89,14 @@ Separate required guarantees from the machinery proposed to provide them.
 Assigning a responsibility to a component does not establish how it can fulfill it.
 Use a focused experiment when the mechanism remains uncertain.
 
-Once the approach is concrete, step back. Consider whether existing mechanisms,
-more direct data flow, fewer responsibilities, or a smaller scope would achieve
-the same outcome. Preserve required guarantees. A simplification pass can conclude
-that complexity is justified; it must not manufacture churn to appear productive.
-Present consequential architectural choices while they are cheap to change.
+Once the approach is concrete, step back. Judge complexity by the obligations it
+creates: what people must understand, keep consistent, coordinate, or revisit as
+the system changes. When an approach simplifies one part, identify which
+responsibilities disappear and which move elsewhere. Compare that total burden
+with the behavior the approach needs to provide. Existing mechanisms, more direct
+data flow, or fewer concepts may achieve the same outcome. Preserve required
+guarantees and retain complexity that earns its place; simplification must not
+manufacture churn. Present consequential choices while they are cheap to change.
 
 Divide an authorized approach into coherent increments with real dependencies
 and evidence of completion. Tests and necessary integration belong with the
@@ -128,11 +131,18 @@ exercise and distinguish mock or stub evidence from an integrated or deployed fl
 If verification is unavailable, state the limitation and its consequence accurately.
 
 Before delivery, reconsider simplicity and usability against the final result.
-Look for incidental complexity introduced during implementation, unclear concepts,
-or review boundaries that no longer match the behavior. Revise when a concrete
-shortcoming warrants it. If a revision changes behavior, rerun the affected checks.
-Stop when the outcome is supported and remaining limitations are explicit; repeated
-polishing without a specific benefit adds cost.
+Judge implementation clarity by the reasoning it demands of the next engineer.
+They should be able to identify the relevant responsibilities, follow the effects
+of an operation, and understand how required behavior is maintained without
+reconstructing scattered assumptions. If that requires explanation the structure
+could make apparent, improve the structure within the change's scope. Retain
+explanations for constraints and decisions the implementation cannot convey.
+
+Look for incidental complexity and review boundaries that no longer match the
+behavior. Revise when a concrete shortcoming warrants it. If a revision changes
+behavior, rerun the affected checks. Stop when the outcome is supported and
+remaining limitations are explicit; repeated polishing without a specific benefit
+adds cost.
 
 Check completion at two levels: does the result work, and does it finish the
 assignment? A passing library test may leave the consumer unwired. A correct
