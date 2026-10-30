@@ -118,6 +118,18 @@ File protection skips unrelated untracked directories, including ignored build
 and dependency trees, and inspects their contents only where a checkout could
 overlap them.
 
+The helper restores directly to the fetched files, so an unchanged review keeps
+file modification times intact. Collision checks inspect only paths that the
+destination adds to the index.
+
+On Unix, default SSH fetches reuse a private control connection for up to five
+idle minutes. The socket is keyed by remote URL and SSH connection identity.
+Custom `core.sshCommand`, `GIT_SSH`, `GIT_SSH_COMMAND`, and `GIT_SSH_VARIANT`
+settings are respected. Disable the helper's connection reuse with
+`git config review.reuseSSH false`. Initial connections still pay the normal
+SSH handshake cost; a branch's first review also needs its PR base lookup
+before fetching. No global SSH configuration is changed.
+
 Install or update with the programs installer below. New machines also get the
 command through `setup.sh`.
 

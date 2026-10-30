@@ -3,11 +3,15 @@
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
 import json
 import os
 from pathlib import Path
+import shlex
+import stat
 import subprocess
 import sys
+import tempfile
 from typing import Optional
 from urllib.parse import urlsplit
 
@@ -66,12 +70,18 @@ def github_repo(remote: str) -> str:
     return f"{host}/{path}"
 
 
-def protect_untracked(head: str) -> None:
+def check_restore(head: str) -> bool:
+    changes = git("diff", "--cached", "--name-status", "--no-renames", "-z", head, "--")
+    if not changes:
+        return False
+    fields = changes.rstrip("\0").split("\0")
+    # Only paths present in the destination but absent from the index can collide
+    # with untracked files. Existing index paths are covered by the unstaged check.
+    paths = {path for status, path in zip(fields[::2], fields[1::2]) if status == "D"}
+    if not paths:
+        return True
     # Include ignored files too: Git normally allows a checkout to overwrite them.
     entries = git("ls-files", "--others", "--directory", "--no-empty-directory", "-z").split("\0")
-    paths = set()
-    for ref in ("HEAD", head):
-        paths.update(path for path in git("ls-tree", "-r", "--name-only", "-z", ref).split("\0") if path)
     parents = set()
     for path in paths:
         parts = path.split("/")
@@ -93,6 +103,7 @@ def protect_untracked(head: str) -> None:
         parts = path.split("/")
         if path in parents or any("/".join(parts[:index]) in paths for index in range(1, len(parts) + 1)):
             raise RuntimeError(f"Untracked or ignored path would be overwritten: {path!r}. Nothing discarded.")
+    return True
 
 
 def pr_base(remote: str, head_branch: str) -> str:
@@ -105,12 +116,42 @@ def pr_base(remote: str, head_branch: str) -> str:
     return pr["baseRefName"]
 
 
+def ssh_options(remote: str) -> tuple:
+    if not hasattr(os, "getuid") or any(key in os.environ for key in ("GIT_SSH", "GIT_SSH_COMMAND", "GIT_SSH_VARIANT")):
+        return ()
+    if git("config", "--get", "core.sshCommand", optional=True):
+        return ()
+    if git("config", "--bool", "--get", "review.reuseSSH", optional=True) == "false":
+        return ()
+    url = git("remote", "get-url", "--", remote)
+    if not url.startswith("ssh://") and not ("://" not in url and ":" in url and not url.startswith("/")):
+        return ()
+    directory = Path(tempfile.gettempdir()) / f"git-review-ssh-{os.getuid()}"
+    # Key by URL as well as SSH's connection identity to keep SSH aliases apart.
+    remote_key = hashlib.sha256(url.encode()).hexdigest()[:12]
+    control_path = str(directory / (remote_key + "-%C"))
+    if len(os.fsencode(control_path.replace("%C", "0" * 40))) > 100:
+        return ()
+    try:
+        directory.mkdir(mode=0o700, exist_ok=True)
+        metadata = directory.lstat()
+        if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.getuid() or metadata.st_mode & 0o077:
+            return ()
+    except OSError:
+        return ()
+    command = shlex.join([
+        "ssh", "-o", "ControlMaster=auto", "-o", "ControlPersist=300",
+        "-o", "ControlPath=" + control_path,
+    ])
+    return ("-c", "core.sshCommand=" + command)
+
+
 def fetch_review(remote: str, head_branch: str, base: str) -> None:
     validate_branch(base)
     if base == head_branch:
         raise RuntimeError("The review branch must differ from its base branch.")
     git(
-        "fetch", "--atomic", "--no-tags", "--", remote,
+        *ssh_options(remote), "fetch", "--atomic", "--no-tags", "--", remote,
         f"+refs/heads/{head_branch}:refs/remotes/{remote}/{head_branch}",
         f"+refs/heads/{base}:refs/remotes/{remote}/{base}",
     )
@@ -151,7 +192,8 @@ def main() -> int:
             raise RuntimeError("Detached HEAD; specify a branch to review.")
         validate_branch(branch)
         check_checkout(root, branch)
-        remote = args.remote or git("config", "--get", f"branch.{branch}.remote", optional=True) or "origin"
+        configured_remote = git("config", "--get", f"branch.{branch}.remote", optional=True)
+        remote = args.remote or configured_remote or "origin"
         if remote == ".":
             raise RuntimeError("The branch tracks a local branch; specify --remote <name>.")
         upstream = git("config", "--get", f"branch.{branch}.merge", optional=True)
@@ -166,11 +208,13 @@ def main() -> int:
         behind = int(git("rev-list", "--count", head + ".." + base_head))
         # Recheck after network operations before making the disposable changes.
         check_checkout(root, branch)
-        protect_untracked(head)
+        restore_needed = check_restore(head)
         git("config", f"branch.{branch}.reviewBase", base)
-        git("restore", "--source=HEAD", "--staged", "--worktree", "--", ".")
+        if restore_needed:
+            git("restore", "--source=" + head, "--staged", "--worktree", "--", ".")
         git("switch", "--no-overwrite-ignore", "-C", branch, head)
-        git("branch", "--set-upstream-to=" + head_ref, "--", branch)
+        if configured_remote != remote or upstream != "refs/heads/" + head_branch:
+            git("branch", "--set-upstream-to=" + head_ref, "--", branch)
         git("reset", "--soft", ancestor)
         print(f"Reviewing {branch} at {head[:12]} against {remote}/{base} (merge base {ancestor[:12]}).")
         if behind:

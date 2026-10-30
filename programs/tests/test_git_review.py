@@ -22,6 +22,7 @@ class ReviewTest(unittest.TestCase):
         self.repo = self.root / "reviewer"
         self.env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
         self.env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1", LC_ALL="C")
+        self.env["TMPDIR"] = str(self.root)
         self.env["PATH"] = str(PROGRAM.parent) + os.pathsep + self.env["PATH"]
         self.git("init", "--bare", "-b", "main", str(self.remote), cwd=self.root)
         self.git("clone", str(self.remote), str(self.author), cwd=self.root)
@@ -91,7 +92,7 @@ class ReviewTest(unittest.TestCase):
         git_wrapper.write_text(
             '#!/bin/sh\nif [ "$1" = remote ] && [ "$2" = get-url ]; then\n'
             "  printf '%s\\n' git@github.com:example/project.git\nelse\n"
-            f'  if [ "$1" = fetch ]; then touch {fetch_signal}; fi\n'
+            f'  for arg in "$@"; do if [ "$arg" = fetch ]; then touch {fetch_signal}; fi; done\n'
             f"  exec {shlex.quote(real_git)} \"$@\"\nfi\n"
         )
         git_wrapper.chmod(0o755)
@@ -116,6 +117,75 @@ class ReviewTest(unittest.TestCase):
         self.env["PATH"] = str(fake_bin) + os.pathsep + self.env["PATH"]
         self.env["GIT_EXEC_PATH"] = str(fake_bin)
 
+    def ssh_remote(self):
+        fake_bin = self.root / "ssh-bin"
+        fake_bin.mkdir()
+        real_git = shutil.which("git", path=self.env["PATH"])
+        log = self.root / "ssh-args.json"
+        ssh = fake_bin / "ssh"
+        ssh.write_text(
+            "#!/usr/bin/env python3\nimport json\nimport os\nfrom pathlib import Path\nimport sys\n"
+            "if '-G' in sys.argv:\n    sys.exit(0)\n"
+            f"Path({str(log)!r}).write_text(json.dumps(sys.argv[1:]))\n"
+            f"os.execv({real_git!r}, [{real_git!r}, 'upload-pack', {str(self.remote)!r}])\n"
+        )
+        ssh.chmod(0o755)
+        self.env["PATH"] = str(fake_bin) + os.pathsep + self.env["PATH"]
+        self.git("remote", "set-url", "origin", "ssh://git@example.test/project.git")
+        return ssh, log
+
+    def test_default_ssh_uses_private_expiring_connection(self):
+        _, log = self.ssh_remote()
+        self.review("--base", "main")
+        self.assert_review()
+        arguments = json.loads(log.read_text())
+        self.assertIn("ControlMaster=auto", arguments)
+        self.assertIn("ControlPersist=300", arguments)
+        control_path = next(arg.split("=", 1)[1] for arg in arguments if arg.startswith("ControlPath="))
+        self.assertEqual(Path(control_path).parent.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(self.git("config", "--get", "core.sshCommand", check=False).returncode, 1)
+
+    def test_ssh_reuse_can_be_disabled(self):
+        _, log = self.ssh_remote()
+        self.git("config", "review.reuseSSH", "false")
+        self.review("--base", "main")
+        self.assert_review()
+        self.assertNotIn("ControlMaster=auto", json.loads(log.read_text()))
+
+    def test_custom_ssh_command_is_respected(self):
+        ssh, log = self.ssh_remote()
+        command = shlex.quote(str(ssh)) + " --custom"
+        self.git("config", "core.sshCommand", command)
+        self.review("--base", "main")
+        self.assert_review()
+        self.assertIn("--custom", json.loads(log.read_text()))
+        self.assertEqual(self.git("config", "core.sshCommand"), command)
+
+    def test_environment_ssh_command_is_respected(self):
+        ssh, log = self.ssh_remote()
+        self.env["GIT_SSH_COMMAND"] = shlex.quote(str(ssh)) + " --custom-env"
+        self.review("--base", "main")
+        self.assert_review()
+        self.assertIn("--custom-env", json.loads(log.read_text()))
+
+    def test_shared_socket_directory_falls_back_to_normal_ssh(self):
+        _, log = self.ssh_remote()
+        directory = self.root / f"git-review-ssh-{os.getuid()}"
+        directory.mkdir(mode=0o777)
+        directory.chmod(0o777)
+        self.review("--base", "main")
+        self.assert_review()
+        self.assertNotIn("ControlMaster=auto", json.loads(log.read_text()))
+
+    def test_symlink_socket_directory_falls_back_to_normal_ssh(self):
+        _, log = self.ssh_remote()
+        target = self.root / "other"
+        target.mkdir()
+        (self.root / f"git-review-ssh-{os.getuid()}").symlink_to(target, target_is_directory=True)
+        self.review("--base", "main")
+        self.assert_review()
+        self.assertNotIn("ControlMaster=auto", json.loads(log.read_text()))
+
     def test_stages_fetched_branch_with_additions_and_deletions(self):
         self.review("--base", "main")
         self.assert_review()
@@ -130,6 +200,15 @@ class ReviewTest(unittest.TestCase):
         self.assert_review()
         self.assertFalse((self.repo / "scratch").exists())
         self.assertEqual((self.repo / "shared").read_text(), "feature\n")
+
+    def test_unchanged_repeat_does_not_rewrite_review_files(self):
+        self.review("--base", "main")
+        before = {name: (self.repo / name).stat().st_mtime_ns for name in ("feature", "shared")}
+        self.review("--base", "main")
+        self.assert_review()
+        self.assertEqual(
+            {name: (self.repo / name).stat().st_mtime_ns for name in before}, before,
+        )
 
     def test_switches_from_previous_staged_review(self):
         self.git("switch", "main")
@@ -307,6 +386,52 @@ class ReviewTest(unittest.TestCase):
         (self.repo / "folder/file").write_text("keep ignored\n")
         with (self.repo / ".git/info/exclude").open("a") as exclude:
             exclude.write("folder/\n")
+        self.assert_failure_preserves_review("--base", "main", message="would be overwritten")
+
+    def test_directory_replaced_by_file_preserves_untracked_children(self):
+        (self.author / "folder").mkdir()
+        (self.author / "folder/old").write_text("old\n")
+        self.commit("folder")
+        self.git("push", "origin", "feature", cwd=self.author)
+        self.review("--base", "main")
+        (self.repo / "folder/notes").write_text("keep\n")
+        self.git("rm", "-r", "folder", cwd=self.author)
+        (self.author / "folder").write_text("replacement file\n")
+        self.commit("file instead of folder")
+        self.git("push", "origin", "feature", cwd=self.author)
+        self.assert_failure_preserves_review("--base", "main", message="would be overwritten")
+
+    def test_file_replaced_by_directory_preserves_untracked_sibling(self):
+        (self.author / "folder").write_text("original file\n")
+        self.commit("file")
+        self.git("push", "origin", "feature", cwd=self.author)
+        self.review("--base", "main")
+        self.git("rm", "-f", "folder")
+        (self.repo / "folder").mkdir()
+        (self.repo / "folder/notes").write_text("keep\n")
+        self.git("rm", "folder", cwd=self.author)
+        (self.author / "folder").mkdir()
+        (self.author / "folder/new").write_text("new\n")
+        self.commit("folder instead of file")
+        self.git("push", "origin", "feature", cwd=self.author)
+        head = self.git("rev-parse", "HEAD", cwd=self.author)
+        self.review("--base", "main")
+        self.assert_review(head=head)
+        self.assertEqual((self.repo / "folder/notes").read_text(), "keep\n")
+
+    def test_file_replaced_by_directory_preserves_untracked_collision(self):
+        (self.author / "folder").write_text("original file\n")
+        self.commit("file")
+        self.git("push", "origin", "feature", cwd=self.author)
+        self.review("--base", "main")
+        self.git("rm", "-f", "folder")
+        (self.repo / "folder").mkdir()
+        (self.repo / "folder/new").write_text("keep\n")
+        self.git("rm", "folder", cwd=self.author)
+        (self.author / "folder").mkdir()
+        (self.author / "folder/new").write_text("remote\n")
+        self.commit("folder instead of file")
+        self.git("push", "origin", "feature", cwd=self.author)
         self.assert_failure_preserves_review("--base", "main", message="would be overwritten")
 
     def test_same_base_is_rejected_without_cleanup(self):
