@@ -119,8 +119,8 @@ and dependency trees, and inspects their contents only where a checkout could
 overlap them.
 
 The helper restores directly to the fetched files, so an unchanged review keeps
-file modification times intact. Collision checks inspect only paths that the
-destination adds to the index.
+file modification times intact. Collision checks inspect paths that the
+destination adds to the index and files removed from the source branch.
 
 On Unix, default SSH fetches reuse a private control connection for up to five
 idle minutes. The socket is keyed by remote URL and SSH connection identity.

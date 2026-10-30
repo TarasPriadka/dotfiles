@@ -351,6 +351,17 @@ class ReviewTest(unittest.TestCase):
         (self.repo / "shared").write_text("untracked replacement\n")
         self.assert_failure_preserves_review("--base", "main", message="would be overwritten")
 
+    def test_untracked_replacement_of_destination_deletion_stops_before_cleanup(self):
+        self.git("switch", "main")
+        self.git("rm", "removed")
+        (self.repo / "removed").write_text("keep untracked replacement\n")
+        self.assert_failure_preserves_review("feature", "--base", "main", message="would be overwritten")
+
+    def test_noop_review_protects_untracked_replacement_of_deleted_file(self):
+        self.review("--base", "main")
+        (self.repo / "removed").write_text("keep untracked replacement\n")
+        self.assert_failure_preserves_review("--base", "main", message="would be overwritten")
+
     def test_untracked_directory_conflicting_with_file_is_preserved(self):
         self.git("switch", "main")
         (self.repo / "feature").mkdir()

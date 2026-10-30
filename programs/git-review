@@ -72,14 +72,17 @@ def github_repo(remote: str) -> str:
 
 def check_restore(head: str) -> bool:
     changes = git("diff", "--cached", "--name-status", "--no-renames", "-z", head, "--")
-    if not changes:
-        return False
     fields = changes.rstrip("\0").split("\0")
     # Only paths present in the destination but absent from the index can collide
     # with untracked files. Existing index paths are covered by the unstaged check.
     paths = {path for status, path in zip(fields[::2], fields[1::2]) if status == "D"}
+    # Switching also guards files removed from the source branch, even when the
+    # restored index already matches the destination.
+    paths.update(path for path in git(
+        "diff", "--cached", "--name-only", "--no-renames", "--diff-filter=D", "-z", "HEAD", "--",
+    ).split("\0") if path)
     if not paths:
-        return True
+        return bool(changes)
     # Include ignored files too: Git normally allows a checkout to overwrite them.
     entries = git("ls-files", "--others", "--directory", "--no-empty-directory", "-z").split("\0")
     parents = set()
@@ -103,7 +106,7 @@ def check_restore(head: str) -> bool:
         parts = path.split("/")
         if path in parents or any("/".join(parts[:index]) in paths for index in range(1, len(parts) + 1)):
             raise RuntimeError(f"Untracked or ignored path would be overwritten: {path!r}. Nothing discarded.")
-    return True
+    return bool(changes)
 
 
 def pr_base(remote: str, head_branch: str) -> str:
