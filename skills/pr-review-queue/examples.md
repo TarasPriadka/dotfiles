@@ -1,65 +1,82 @@
-# Queue behavior examples
+# Queue scenarios
 
-These scenarios describe the queue workflow. Use `pr-comprehension`'s examples
-for explanation quality; this skill adds no second report format.
+## Batch first, discuss later
 
-## Prepare a batch
+"Prepare these eight PRs so I can review them tomorrow."
 
-Request: "Prepare #123 and #124 so I can review them later."
+Complete the code reviews, explanations, design/scope assessments, and relevant
+verification. Preserve the review skill's independent reviewer isolation. Save
+every check result locally and return the queue index; do not post to GitHub.
+Compare each stacked PR against its own base. Reading a prerequisite does not add
+it to the queue. If tests cannot run, save the reason and the resulting evidence
+limit instead of claiming a pass.
 
-Resolve both PRs in the current repository, use `pr-comprehension` for each,
-and save their explanations, evidence, and state under the main checkout's
-`.pr-review-queue/`. Return the index link and any preparation limitations.
-Do not post comments or launch code reviewers. If #124 depends on #123,
-explain that relationship and compare #124
-against its own base.
+Later: "Help me review #123."
 
-## A single immediate explanation
+The reviewed comparison still matches. Read the saved note and reports, state that
+the prepared review is being reused, and start with the concrete walkthrough.
+No new reviewers or repeated test run are needed. Follow-up questions cause
+focused source reading and useful notes, not repeated review cycles.
 
-Request: "Explain #123."
+## Staged changes after git uncommit
 
-Use `pr-comprehension` and return the explanation in the conversation. Do not
-create or refresh a queue merely because one already exists. "Queue #123 for
-tomorrow"
-does request a saved entry, even though it names only one PR.
+The saved review covers B → H. The user soft-resets to B, leaving H in the index,
+and asks "review the staged changes."
 
-## Prepare from a linked worktree
+The matching script compares HEAD's tree with B and the index with H. Reuse the
+prepared review despite the local HEAD and current branch's associated PR changing.
+An unrelated unstaged edit does not enter the staged review. If that edit is later
+staged, inspect its delta before claiming the saved review covers it.
 
-The agent runs in `/tmp/project-feature`, linked to the main checkout at
-`/home/developer/code/project`. Resolve the main-worktree record and write the
-queue under `/home/developer/code/project/.pr-review-queue/`. A later invocation
-from another linked worktree reads that same queue. Do not create a queue under
-`/tmp/project-feature`, or switch the main checkout's branch. Check ignore rules
-in the main checkout, even when the feature worktree already ignores the path.
+## Content and context changes
 
-## Delete as you go
+A new commit has exactly the reviewed tree and the same base tree: reuse even
+though its SHA differs. If a dependency changed during a rebase, inspect the base
+and head changes and their effect on the saved conclusions. Equal patch text alone
+does not establish equal context. Update affected checks, or explain why a full
+rerun is warranted. A title edit, approval, or new bot comment does not restart
+the batch. A substantive new comment can require a focused follow-up.
 
-The user deletes #123's directory after reading it. The old index still lists
-PRs #123 and #124. On "show my queue" or "refresh my queue," rebuild membership
-from the remaining directories: only #124 remains. The old index is not an
-instruction to restore #123. If a worker for #123 is still running, discard its
-result instead of recreating the directory.
+"Rerun the full review of #123" explicitly requests fresh reviewers. Preserve
+blind/ownership isolation from the prior reports and save the new results.
 
-If the user deletes the entire queue, a subsequent refresh reports an empty
-queue. "Add #123 again" explicitly creates a new entry.
+## A simpler PR needs fewer separate checks
 
-## Refresh without accumulating history
+A small configuration change still gets its code review and an explanation of
+where the configuration is consumed. Record why a separate architecture critique
+or split proposal adds nothing. Reuse the code review's existing performance,
+ownership, and convention checks instead of launching duplicate specialist work.
 
-PR #124's head stays the same, but its base changes. Recompute the comparison and
-refresh its explanation through `pr-comprehension`; replace the generated files
-after successful preparation. Do not append a revision archive. If the saved
-explanation contains user edits, preserve them and report that replacement
-needs direction.
+## Partial results and human edits
 
-If GitHub is unavailable, keep the last explanation labeled with its original
-revision and report that freshness could not be verified. Other ready entries
-remain usable.
+One PR's required review fails halfway through. Save completed checks, leave code
+review incomplete, and continue the other PRs. Resuming fills the missing work.
+Verification unavailable in this environment remains a clearly limited check.
 
-## Check the workflow
+The user edits `review.md` or adds decisions to `notes.md`. Preserve that text
+when refreshing. A checksum difference protects edits; it does not invalidate
+the source comparison. Showing the queue reads local files without GitHub calls.
 
-Try the scenarios above in a disposable checkout when changing queue behavior.
-Verify that single explanations create no files, all worktrees use the main
-checkout's queue, batch output is ignored by Git there,
-deleted entries stay absent after refresh and worker completion, and changed
-bases invalidate cached understanding. A ready queue entry is preparation, not
-a code-review verdict.
+## Existing explanations and deleted entries
+
+An old entry contains only `overview.md` and `evidence.md`. Reuse its supported
+understanding, but do not claim reviewers already ran. If a matching completed
+review exists in the current session, import it instead of repeating it.
+
+A user deletes an entry or clears the queue. Do not restore it from the index,
+conversation, or a pending worker result. Adding that PR again requires a new
+explicit addition. Linked worktrees always share the main checkout's queue.
+
+## Check this workflow
+
+Run the comparison helper's tests in a disposable directory:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
+  -s <skill-directory>/tests -v
+```
+
+The cases exercise matching staged content after a soft reset, source/context
+changes, identical trees under different commits, missing/edited reports, changed
+rules, and incomplete legacy entries. Also walk through the prompts above to
+check that the written workflow starts discussion without launching reviewers.

@@ -45,6 +45,18 @@ If the user explicitly borrows this skill for a design or another non-PR
 explanation, use its concrete walkthrough method within that task. Do not select
 a diff or add PR-specific headings and revision metadata without a PR target.
 
+## Reuse prepared reviews
+
+Before investigating queued work, consult the installed `pr-review-queue` skill.
+A request to explain or review a PR or staged diff can reuse a prepared review
+when its source comparison matches. Start the discussion from the saved
+explanation, findings, and limits; use focused source reads for follow-ups.
+Do not launch reviewers or repeat verification merely because a new turn asks
+for a review. Let the queue workflow assess changes and save useful discussion
+notes. With no matching entry, continue this normal comprehension workflow
+without creating queue files. When invoked during batch preparation, return the
+explanation and checked sources to the queue coordinator for storage.
+
 Read [operations.md](operations.md) before gathering PR data. Read
 [examples.md](examples.md) before writing the first explanation in a run.
 

@@ -1,166 +1,137 @@
 ---
 name: pr-review-queue
 description: >
-  Prepare and refresh a persistent queue of PR explanations for later reading.
-  Use when the user supplies a batch of PRs to explain, asks to queue PRs for
-  later, or wants an existing queue refreshed. Uses the installed
-  pr-comprehension skill for each explanation and stores browsable, disposable
-  files in the main repository checkout, shared across its worktrees.
+  Batch full PR reviews, explanations, design critiques, and relevant checks for
+  later discussion. Save their results in the repository's shared local queue.
+  Also use before reviewing or explaining queued PRs or staged changes: reuse a
+  matching prepared review instead of launching reviewers again. Refresh changed
+  conclusions when needed or rerun when explicitly requested.
 ---
 
 # PR review queue
 
-Prepare understanding ahead of the human's reading. This skill owns queue
-membership, storage, refresh, and the index. Load and use the installed
-`pr-comprehension` skill for every explanation; do not duplicate its
-investigation or writing instructions here. If it is unavailable, report the
-missing dependency before preparing entries. A prepared queue does not imply
-that anyone has approved a PR.
+Prepare the expensive review work ahead of the user's reading. Later sessions
+use the saved understanding to explain and discuss each change immediately.
+This skill owns preparation, storage, matching, and refresh; specialist skills
+own their analysis methods. A completed review is separate from human approval.
 
-## Inputs and scope
+## Choose the operation first
 
-- Accept PR numbers or URLs, a batch to prepare, or a request to show or refresh
-  the existing queue. Resolve bare numbers against the current repository.
-- A batch of explanations or an explicit queue request authorizes local queue
-  files. Honor requests for conversation-only output instead. A single PR can
-  be queued when the user explicitly wants to prepare it for later.
-- With no new PRs supplied, operate only on entries still present on disk. If
-  the queue does not exist, report that it is empty without creating it.
-- Resolve the main repository checkout for storage as described below. Do not
-  switch branches, modify implementation files, stage queue files, or create a
-  personal/global store.
-- Queue preparation writes local files only. Posting to GitHub is a separate
-  task requiring an explicit request.
+- **Prepare a batch:** resolve the supplied PRs or author/assignment selection,
+  then complete the reviews and applicable checks below. An explicit queue
+  request authorizes local artifacts, not GitHub publication or source edits.
+  Keep publication invitations from individual skills out of batch preparation;
+  return the saved results unless the user asks to publish.
+- **Discuss or review queued work:** check for a matching prepared review before
+  starting any workflow that launches reviewers. Ordinary requests such as
+  "review the staged changes" or "help me understand this PR" normally reuse it.
+- **Show:** derive the index from existing entry directories without rerunning
+  checks or fetching GitHub metadata solely to display the queue.
+- **Refresh:** reconcile existing entries with current code and update affected
+  results. An explicit full rerun bypasses reuse for the requested scope.
 
-Read [examples.md](examples.md) for membership and refresh scenarios.
+With no queue or matching entry, an ordinary single-PR request follows the normal
+review/explanation workflow without creating queue files. After a fresh review
+of an existing entry, save the results there so the next discussion can reuse
+them. Do not backfill unrelated PRs or start a new batch during discussion.
 
-## Storage and membership
+Read [storage.md](storage.md) before writing or matching entries, and
+[examples.md](examples.md) for refresh, staged-work, and migration scenarios.
 
-Use `.pr-review-queue/` in the **main repository checkout**, not the worktree
-where the agent happens to run. Resolve its absolute path from the first
-(main-worktree) record of `git worktree list --porcelain -z`. Do not use the
-current worktree's `git rev-parse --show-toplevel` as the storage root. "Main"
-means the original checkout, regardless of the branch checked out there; never
-switch it to the `main` branch. If the repository is bare or the main checkout
-is unavailable, ask for a destination rather than creating a second queue.
+## Prepare reviews, not just explanations
 
-All linked worktrees share that one queue. Check ignore rules from the resolved
-main checkout before writing. If `/.pr-review-queue/` is not ignored there, add
-only that entry to its local Git exclude file; the main checkout may not yet
-contain this PR's `.gitignore` change. Do not stage generated queue files or
-modify the main checkout's tracked files to enable storage.
+Establish each PR's exact head and actual merge base, including stacked bases.
+Read the description and relevant discussion as claims to check against code.
+Use exact source views without switching branches or changing the user's files.
+The preparation should establish:
 
-Namespace entries by their full GitHub identity so numbers from different
-repositories cannot collide:
+| Area | Method and saved result |
+| --- | --- |
+| Understanding | Use installed `pr-comprehension`: motivation, building blocks, one concrete end-to-end walkthrough, source links, and the implemented boundary. |
+| Code review | Use the repository's review skill and `REVIEW.md`. In Gimlet, run `gml-review`, including its informed, blind, and ownership reviewers. Save each reviewer's factual report and the consolidated findings. |
+| Design | Apply installed `design-challenge` where architectural assumptions, ownership, dependencies, or complexity warrant it. Save supported concerns and alternatives, or why no separate critique applies. |
+| Reviewability | Assess coherent behavior and stack dependencies. Apply `identify-pr-splits` when splitting could materially simplify review; otherwise record why the boundary is cohesive. |
+| Verification | Run relevant authorized tests/builds on the reviewed source and inspect useful CI evidence. Distinguish executed, inspected, unavailable, and deferred checks. |
 
-```text
-.pr-review-queue/
-  index.md
-  github.com/
-    owner/
-      repo/
-        123/
-          overview.md
-          evidence.md
-          state.json
-```
+Select other available specialist checks from the actual languages, contracts,
+and risks changed. Do not invoke every installed skill by name matching, repeat
+checks already covered by the review, or turn preparation into fixes, publication,
+or a deployment. Report a missing required review capability as a limitation;
+an explanation alone must not be labeled a completed code review.
 
-Existing entry directories are the source of truth for membership. `index.md`
-is a derived view, not a list to replay. Create an entry only for a PR explicitly
-supplied in the current add/prepare request. A user can delete an entry directory
-after reading it, or delete the entire queue to clear it. Never recreate deleted
-entries from an old index, conversation, cached task list, or external store.
-Re-adding a deleted PR requires a new explicit request.
+Preserve independent reviewer isolation: blind and ownership reviewers receive
+the comparison and repository rules, without the overview, rationale, prior
+findings, or design critique. Reconcile the results before composing the main
+note; include only supported findings and material limits there. Check reports
+may retain factual coverage and source evidence, not private reasoning transcripts.
 
-Keep only the current explanation and evidence for each entry. Do not create
-automatic history directories, backups, or another queue elsewhere. Do not
-automatically delete entries when PRs close or merge; show their state so the
-user can decide when to remove them. Follow repository rules about deleting
-untracked files; user-managed deletion needs no agent cleanup operation.
+Schedule the batch within available execution capacity. Account for the review
+skill's own workers rather than nesting unbounded PR workers. When delegation
+is prohibited or unavailable, follow the review skill's permitted fallback and
+record the resulting limits. Do not imply work continues after the turn ends.
 
-Each entry contains:
+Save check results as they finish. Finish the explanation after the checks so it
+reflects their discoveries. Recheck the source comparison before marking the
+entry ready. If the code moved, identify the delta and refresh affected results
+or leave the entry clearly incomplete for that comparison. One failed PR must
+not erase its previous usable report or prevent preparing the other PRs.
 
-- `overview.md`: the concise explanation returned by `pr-comprehension`, with
-  revision-pinned links and the examined comparison in its footer.
-- `evidence.md`: selective claims and checked sources, instruction sources,
-  tests inspected or run, and consequential unknowns. No reasoning transcript.
-- `state.json`: schema version, host/owner/repository/PR number and URL, head
-  SHA, base SHA, merge-base SHA, preparation timestamp and requested focus/depth,
-  progress, PR state, relevant discussion fingerprint, and any refresh error.
-  Record hashes of the explanation and evidence when written so user edits can be
-  detected before replacement. Use null for facts that could not be obtained.
+## Reuse before launching reviewers
 
-Keep the `overview.md` filename for compatibility with existing queue entries;
-its content follows the `PR Comprehension` format. Do not rename user-managed
-entry files solely for terminology.
+1. Resolve the requested comparison. For staged changes, the base is local
+   `HEAD` and the target is the index; exclude unstaged edits. For a clean branch
+   or PR, resolve its actual comparison rather than assuming `main`.
+2. Find the entry by repository/PR identity. After `git uncommit`, branch metadata
+   may point at the parent PR: match the saved base/head contents against the
+   staged comparison instead of trusting that association or changed filenames.
+3. Use `scripts/check_review.py` as described in `storage.md`. It reads local
+   Git objects and reports whether the code, base context, and review rules match.
+   It does not fetch, edit files, or launch checks.
+4. On a match, read `review.md`, relevant check reports, and `notes.md`. Say once
+   that the prepared review is being reused, then answer the user's question.
+   Do not rerun reviewers, tests, or the whole explanation merely to reproduce it.
 
-Progress is `pending`, `reading`, `ready`, `stale`, `incomplete`, or `blocked`.
-Keep it separate from the PR's `open`, `closed`, or `merged` state. `ready` means
-the explanation is prepared for that comparison, not that review is complete.
+Focused source reading is encouraged when it answers a follow-up. It does not
+restart the review. Use the saved reports as the evidence-backed starting point;
+retain important limits and distinguish prior execution from newly run checks.
 
-## Add and prepare
+If content or context differs, compare it with the reviewed revision and update
+only the conclusions and checks affected when that is sufficient. Identical diff
+text alone does not establish identical surrounding code. Changed commit IDs
+alone do not invalidate identical source trees. A base update needs an impact
+assessment, not an automatic full rerun. Apply changed review rules to the gaps
+they create. New PR comments can warrant focused investigation; titles, bot
+comments, CI updates, timestamps, and merge/approval state are not blanket review
+invalidation rules.
 
-1. Resolve and deduplicate the supplied PR identities. Inspect existing entry
-    directories before creating anything; an existing entry should be reused.
-2. Obtain each PR's current metadata and exact comparison using
-    `pr-comprehension`'s gathering instructions. Record its actual base,
-    including stacked bases. Reading prerequisite PRs does not automatically
-    add them to the queue.
-3. Create entries for explicit additions with `pending` state. Reuse unchanged,
-    complete entries when their comparison, discussion, focus, and depth match.
-4. Run `pr-comprehension` for each entry that needs preparation. Supply the exact
-    target, comparison, focus/depth, and available context. Use its returned
-    explanation. The queue worker also collects the checked sources, comparison,
-    checks performed, and unknowns needed for this skill's evidence and state;
-    `pr-comprehension` does not define or write those artifacts.
-5. Verify that the PR comparison has not moved before marking the entry ready.
-    If it moved, retain the explanation's original revision and mark it stale;
-    refresh within the task's scope or report that work remains.
-6. Write the explanation and evidence, then mark the state ready. Use atomic file
-    replacement where possible; never mark ready before all output is complete.
-    On failure, retain the previous usable explanation, mark its limitation, and
-    continue preparing other entries.
+Rerun a full review when requested, or when material changes or missing evidence
+make incremental reuse unreliable. State the concrete reason before launching
+it. Update the saved comparison only after the prior results and new work jointly
+cover it. If freshness cannot be established, explain what remains unverified;
+use clearly scoped existing results while investigating rather than silently
+calling them fresh or reflexively launching reviewers.
 
-For a batch, use one explanation worker per PR, bounded by available agent slots.
-Workers read `pr-comprehension` and return content; they do not write queue
-files, publish comments, or spawn additional agents. The coordinator owns all
-writes and the index. Process sequentially if delegation is unavailable.
+## Keep the discussion useful
 
-Before writing a worker's result, confirm the entry still exists and represents
-the same request you assigned. If the user deleted it or cleared the queue while
-preparation was running, discard the result. Only the explicit addition step
-may create directories; refresh and completion must not recreate them.
+Begin with the change's need and a concrete walkthrough using the saved note.
+Adapt the explanation to what the user is struggling with; do not recite every
+report. Bring relevant findings into that walkthrough and link their evidence.
+Consult detailed reports when asked which reviewer raised an issue or how a
+conclusion was established.
 
-## Show and refresh
-
-To show the queue, rebuild the index from existing entry directories. Do not
-fetch or regenerate explanations unless requested. Display missing or malformed
-state as incomplete rather than treating the entry as ready.
-
-To refresh, check current PR metadata and relevant discussion for existing
-entries only. A changed head, base, merge base, discussion, or requested focus
-can make an explanation stale. An unchanged head alone is not sufficient.
-Reuse valid entries; run `pr-comprehension` for stale or incomplete ones. Pass the
-previous explanation as claims to recheck, not as authoritative context.
-
-If the explanation or evidence differs from its recorded hash, preserve the user's
-edits and report that replacement needs direction. Do not overwrite those files
-as an incidental refresh. Missing metadata or API access leaves freshness
-unverified; retain the previous revision and explain the limitation.
-
-Mark closed or merged PRs with their current state without regenerating them
-automatically. Rebuild the index after processing and exclude directories the
-user removed. Do not infer approval from a merged PR or a completed explanation.
+Save consequential discoveries, user decisions, deferred follow-ups, and resolved
+questions in `notes.md` for that existing entry. Update a finding when new evidence
+changes it. Preserve user edits and keep facts, proposals, and decisions distinct;
+do not save a conversation transcript or reopen settled choices without cause.
 
 ## Deliver
 
-Write `index.md` with relative links to the entry explanations. Use one compact
-table: PR, one-line purpose, preparation status, PR state, and consequential
-unknown or blocker. Preserve the user's requested order where possible and show
-stack dependencies when they help the reader choose an order. Do not invent
-review-time estimates or rank entries by finding count.
+The index contains PR links, one-line purposes, and preparation readiness, in a
+useful stack order. Keep it a reading queue rather than a metadata dashboard.
+Ready means review preparation is complete, including recorded verification
+limits; it never means approval, passing unexecuted tests, or production readiness.
 
-Return an absolute link to the index in the main checkout and a short count of
-ready entries and those needing attention. Explain once that the user can delete
-entry directories as they go and delete `.pr-review-queue/` there to clear the
-queue. Do not repeat every explanation in the conversation unless requested.
+Return the main checkout's absolute index link and counts of ready entries and
+entries needing attention. During discussion, return the explanation and findings
+directly rather than requiring the user to open files. Explain once that deleting
+an entry removes it from the queue, and deleting the queue clears it.

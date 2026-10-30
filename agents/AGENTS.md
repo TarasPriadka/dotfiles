@@ -69,6 +69,16 @@ several complete workflows for the same responsibility. Use `work-ownership`
 as deeper guidance when developing or reconsidering the collaboration; its
 full text need not be loaded on every task.
 
+Before starting reviewers for a PR, branch, or staged diff, check the installed
+`pr-review-queue` skill for a prepared review. Reuse a matching review and its
+explanation during discussion; a new review request does not itself ask to rerun
+reviewers. Refresh affected conclusions when code or context changes, and run a
+full review when explicitly requested or a concrete gap warrants it. Explain
+that reason before restarting reviewers. Save useful discoveries and decisions
+back into an existing queue entry. Batch preparation completes reviews and
+applicable checks ahead of our discussion; queue artifacts remain local unless
+I ask to publish them.
+
 ## Finish the assignment
 
 Establish both that the result works and that it satisfies the entrusted
