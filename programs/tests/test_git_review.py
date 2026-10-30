@@ -76,14 +76,14 @@ class ReviewTest(unittest.TestCase):
         self.assertIn(message, result.stderr)
         self.assertEqual(self.snapshot(), before)
 
-    def assert_review(self, ancestor=None, head=None):
+    def assert_review(self, ancestor=None, head=None, upstream="origin/feature"):
         self.assertEqual(self.git("rev-parse", "HEAD"), ancestor or self.base)
         self.assertEqual(self.git("write-tree"), self.git("rev-parse", (head or self.head) + "^{tree}"))
         self.assertEqual(self.git("diff", "--name-only"), "")
         self.assertEqual(self.git("rev-parse", "ORIG_HEAD"), head or self.head)
-        self.assertEqual(self.git("rev-parse", "--abbrev-ref", "@{upstream}"), "origin/feature")
+        self.assertEqual(self.git("rev-parse", "--abbrev-ref", "@{upstream}"), upstream)
 
-    def fake_github(self, base="main", fail=False, cross_repository=False, wait_for_fetch=False):
+    def fake_github(self, base="main", fail=False, cross_repository=False, wait_for_fetch=False, during_lookup=""):
         fake_bin = self.root / "bin"
         fake_bin.mkdir()
         real_git = shutil.which("git", path=self.env["PATH"])
@@ -110,6 +110,7 @@ class ReviewTest(unittest.TestCase):
             ) + " || exit 1\n"
         gh.write_text(
             "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + shlex.quote(str(self.root / "gh-args")) + "\n"
+            + during_lookup
             + wait
             + ("echo 'PR lookup failed' >&2\nexit 1\n" if fail else "printf '%s\\n' " + shlex.quote(response) + "\n")
         )
@@ -185,6 +186,146 @@ class ReviewTest(unittest.TestCase):
         self.review("--base", "main")
         self.assert_review()
         self.assertNotIn("ControlMaster=auto", json.loads(log.read_text()))
+
+    def test_ssh_path_expansion_and_spaces_use_normal_ssh(self):
+        _, log = self.ssh_remote()
+        for name in ("temp-%h", "temp-${USER}", "temp with spaces"):
+            with self.subTest(path=name):
+                directory = self.root / name
+                directory.mkdir(mode=0o700)
+                self.env["TMPDIR"] = str(directory)
+                self.review("--base", "main")
+                self.assert_review()
+                self.assertNotIn("ControlMaster=auto", json.loads(log.read_text()))
+
+    def test_writable_temp_parent_uses_normal_ssh(self):
+        _, log = self.ssh_remote()
+        directory = self.root / "shared-temp"
+        directory.mkdir()
+        directory.chmod(0o777)
+        self.env["TMPDIR"] = str(directory)
+        self.review("--base", "main")
+        self.assert_review()
+        self.assertNotIn("ControlMaster=auto", json.loads(log.read_text()))
+
+    def test_hidden_unstaged_edit_is_preserved(self):
+        self.git("update-index", "--assume-unchanged", "shared")
+        (self.repo / "shared").write_text("private unstaged edit\n")
+        (self.author / "shared").write_text("remote update\n")
+        self.commit("remote update")
+        self.git("push", "origin", "feature", cwd=self.author)
+        self.assert_failure_preserves_review("--base", "main", message="assume-unchanged")
+
+    def test_skip_worktree_is_rejected_without_cleanup(self):
+        self.git("update-index", "--skip-worktree", "shared")
+        (self.repo / "shared").write_text("private unstaged edit\n")
+        self.assert_failure_preserves_review("--base", "main", message="skip-worktree")
+
+    def assert_unusual_filename_preserved(self, name):
+        (self.author / name).mkdir()
+        (self.author / name / "file").write_text("remote\n")
+        self.commit("unusual filename")
+        self.git("push", "origin", "feature", cwd=self.author)
+        (self.repo / name).mkdir()
+        (self.repo / name / "file").write_text("private untracked file\n")
+        self.assert_failure_preserves_review("--base", "main", message="would be overwritten")
+
+    def test_carriage_return_filename_is_preserved(self):
+        self.assert_unusual_filename_preserved("folder\rname")
+
+    def test_newline_filename_is_preserved(self):
+        self.assert_unusual_filename_preserved("folder\nname")
+
+    def test_non_utf8_filename_is_preserved(self):
+        self.assert_unusual_filename_preserved(os.fsdecode(b"folder-\xff"))
+
+    def test_literal_pathspec_environment_preserves_collisions(self):
+        self.env["GIT_LITERAL_PATHSPECS"] = "1"
+        self.assert_unusual_filename_preserved("folder[1]")
+
+    def test_incomplete_directory_scan_stops_before_cleanup(self):
+        (self.author / "private").mkdir()
+        (self.author / "private/file").write_text("remote\n")
+        self.commit("private directory")
+        self.git("push", "origin", "feature", cwd=self.author)
+        directory = self.repo / "private"
+        directory.mkdir()
+        protected = directory / "file"
+        protected.write_text("private untracked file\n")
+        (self.repo / "notes").write_text("keep staged edit\n")
+        self.git("add", "notes")
+        index = self.git("write-tree")
+        directory.chmod(0o300)
+        try:
+            result = self.review("--base", "main", check=False)
+        finally:
+            directory.chmod(0o700)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Permission denied", result.stderr)
+        self.assertEqual(protected.read_text(), "private untracked file\n")
+        self.assertEqual(self.git("write-tree"), index)
+        self.assertEqual(self.git("rev-parse", "HEAD"), self.head)
+
+    def test_trailing_newline_in_checkout_path(self):
+        destination = self.root / "reviewer\n"
+        self.repo.rename(destination)
+        self.repo = destination
+        self.review("--base", "main")
+        self.assert_review()
+
+    def test_staged_edits_made_during_lookup_are_preserved(self):
+        real_git = shlex.quote(shutil.which("git", path=self.env["PATH"]))
+        self.fake_github(during_lookup="printf 'keep staged edit\\n' > notes\n" + real_git + " add notes\n")
+        result = self.review(check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("changed while fetching", result.stderr)
+        self.assertEqual(self.git("rev-parse", "HEAD"), self.head)
+        self.assertEqual(self.git("diff", "--cached", "--name-only"), "notes")
+        self.assertEqual((self.repo / "notes").read_text(), "keep staged edit\n")
+
+    def test_checkout_changed_during_lookup_is_preserved(self):
+        real_git = shlex.quote(shutil.which("git", path=self.env["PATH"]))
+        self.fake_github(during_lookup=real_git + " switch --quiet main\n")
+        result = self.review(check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("changed while fetching", result.stderr)
+        self.assertEqual(self.git("branch", "--show-current"), "main")
+        self.assertEqual(self.git("rev-parse", "HEAD"), self.base)
+        self.assertEqual(self.git("status", "--porcelain"), "")
+
+    def test_overlapping_review_stops_before_cleanup(self):
+        import fcntl
+
+        lock = self.repo / ".git/git-review.lock"
+        descriptor = os.open(lock, os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self.assert_failure_preserves_review("--base", "main", message="Another git review")
+        finally:
+            os.close(descriptor)
+        self.review("--base", "main")
+        self.assert_review()
+
+    def test_lock_symlink_is_not_followed(self):
+        protected = self.root / "private"
+        protected.write_text("private data\n")
+        (self.repo / ".git/git-review.lock").symlink_to(protected)
+        self.assert_failure_preserves_review("--base", "main", message="git-review.lock")
+        self.assertEqual(protected.read_text(), "private data\n")
+
+    def test_reserved_branch_name_is_rejected_before_cleanup(self):
+        self.git("--git-dir", str(self.remote), "update-ref", "refs/heads/HEAD", self.head)
+        (self.repo / "notes").write_text("keep staged edit\n")
+        self.git("add", "notes")
+        self.assert_failure_preserves_review("HEAD", "--base", "main", message="not a valid branch name")
+
+    def test_branch_name_cannot_execute_shell_commands(self):
+        branch = "topic/$(touch${IFS}REVIEW_PWNED)"
+        self.git("branch", branch, cwd=self.author)
+        self.git("push", "origin", branch, cwd=self.author)
+        self.review(branch, "--base", "main")
+        self.assert_review(upstream="origin/" + branch)
+        self.assertFalse((self.repo / "REVIEW_PWNED").exists())
 
     def test_stages_fetched_branch_with_additions_and_deletions(self):
         self.review("--base", "main")

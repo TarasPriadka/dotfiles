@@ -3,6 +3,7 @@
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -16,36 +17,68 @@ from typing import Optional
 from urllib.parse import urlsplit
 
 
-def run(*args: str, optional: bool = False) -> str:
-    result = subprocess.run(args, text=True, capture_output=True)
-    if result.returncode:
+def run(*args: str, optional: bool = False, check_stderr: bool = False) -> str:
+    result = subprocess.run(args, capture_output=True)
+    if result.returncode or (check_stderr and result.stderr):
         if optional and result.returncode == 1:
             return ""
-        raise RuntimeError(result.stderr.strip() or f"{' '.join(args)} failed")
-    return result.stdout.rstrip("\n")
+        raise RuntimeError(os.fsdecode(result.stderr).strip() or f"{' '.join(args)} failed")
+    return os.fsdecode(result.stdout).removesuffix("\n")
 
 
-def git(*args: str, optional: bool = False) -> str:
-    return run("git", *args, optional=optional)
+def git(*args: str, optional: bool = False, check_stderr: bool = False) -> str:
+    return run("git", *args, optional=optional, check_stderr=check_stderr)
 
 
 def validate_branch(branch: str) -> None:
     if not branch or branch.startswith("-"):
         raise RuntimeError(f"Invalid branch name: {branch!r}")
-    git("check-ref-format", "refs/heads/" + branch)
+    if git("check-ref-format", "--branch", branch) != branch:
+        raise RuntimeError(f"Branch shortcuts are not accepted: {branch!r}")
 
 
-def check_checkout(root: Path, branch: str) -> None:
+@contextmanager
+def review_lock():
+    if os.name != "posix":
+        raise RuntimeError("git review requires POSIX file locking.")
+    import fcntl
+
+    directory = Path(git("rev-parse", "--git-common-dir"))
+    descriptor = os.open(directory / "git-review.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid() or metadata.st_mode & 0o077:
+            raise RuntimeError("The git-review lock must be a private file owned by you.")
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError("Another git review is running in this repository.") from None
+        yield
+    finally:
+        os.close(descriptor)
+
+
+def checkout_state() -> tuple:
+    return (
+        git("rev-parse", "--verify", "HEAD"),
+        git("symbolic-ref", "--quiet", "HEAD", optional=True),
+        git("write-tree"),
+    )
+
+
+def check_checkout(root: Path, branch: str, git_directory: Path) -> None:
     markers = (
         "MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "REBASE_HEAD",
         "rebase-merge", "rebase-apply", "sequencer", "BISECT_START",
     )
-    paths = git("rev-parse", *(arg for marker in markers for arg in ("--git-path", marker)))
-    if any(Path(path).exists() for path in paths.splitlines()):
+    if any((git_directory / marker).exists() for marker in markers):
         raise RuntimeError("Finish or abort the current Git operation before reviewing.")
-    if git("ls-files", "--unmerged"):
+    entries = [entry for entry in git("ls-files", "-v", "-z").split("\0") if entry]
+    if any(entry[0].upper() == "M" for entry in entries):
         raise RuntimeError("Resolve unmerged files before reviewing.")
-    changes = git("diff", "--name-only", "--ignore-submodules=none", "-z")
+    if any(entry[0].islower() or entry[0] == "S" for entry in entries):
+        raise RuntimeError("Index uses assume-unchanged or skip-worktree flags; clear them before reviewing.")
+    changes = git("diff", "--name-only", "--ignore-submodules=none", "-z", check_stderr=True)
     if changes:
         raise RuntimeError("Unstaged edits exist; stage or save them before reviewing. Nothing discarded.")
     for entry in git("worktree", "list", "--porcelain", "-z").split("\0\0"):
@@ -84,7 +117,7 @@ def check_restore(head: str) -> bool:
     if not paths:
         return bool(changes)
     # Include ignored files too: Git normally allows a checkout to overwrite them.
-    entries = git("ls-files", "--others", "--directory", "--no-empty-directory", "-z").split("\0")
+    entries = git("ls-files", "--others", "--directory", "--no-empty-directory", "-z", check_stderr=True).split("\0")
     parents = set()
     for path in paths:
         parts = path.split("/")
@@ -96,11 +129,11 @@ def check_restore(head: str) -> bool:
             continue
         path = entry.rstrip("/")
         if entry.endswith("/") and path in parents:
-            overlapping_directories.append(":(literal)" + entry)
+            overlapping_directories.append(entry)
         else:
             protected.append(path)
     if overlapping_directories:
-        protected.extend(git("ls-files", "--others", "-z", "--", *overlapping_directories).split("\0"))
+        protected.extend(git("--literal-pathspecs", "ls-files", "--others", "-z", "--", *overlapping_directories, check_stderr=True).split("\0"))
     for entry in protected:
         path = entry.rstrip("/")
         parts = path.split("/")
@@ -129,7 +162,16 @@ def ssh_options(remote: str) -> tuple:
     url = git("remote", "get-url", "--", remote)
     if not url.startswith("ssh://") and not ("://" not in url and ":" in url and not url.startswith("/")):
         return ()
-    directory = Path(tempfile.gettempdir()) / f"git-review-ssh-{os.getuid()}"
+    parent = Path(tempfile.gettempdir()).resolve()
+    # OpenSSH expands tokens and environment variables even in shell-quoted paths.
+    if any(character in "%$\"'\\" or character.isspace() or ord(character) < 32 for character in str(parent)):
+        return ()
+    root_owner = Path(parent.anchor).stat().st_uid
+    for ancestor in (parent, *parent.parents):
+        metadata = ancestor.stat()
+        if metadata.st_uid not in (root_owner, os.getuid()) or (metadata.st_mode & 0o022 and not metadata.st_mode & stat.S_ISVTX):
+            return ()
+    directory = parent / f"git-review-ssh-{os.getuid()}"
     # Key by URL as well as SSH's connection identity to keep SSH aliases apart.
     remote_key = hashlib.sha256(url.encode()).hexdigest()[:12]
     control_path = str(directory / (remote_key + "-%C"))
@@ -181,6 +223,45 @@ def refresh(remote: str, branch: str, head_branch: str, base: Optional[str]) -> 
     return base
 
 
+def review(args: argparse.Namespace, root: Path, git_directory: Path) -> None:
+    branch = args.branch or git("symbolic-ref", "--quiet", "--short", "HEAD", optional=True)
+    if not branch:
+        raise RuntimeError("Detached HEAD; specify a branch to review.")
+    validate_branch(branch)
+    check_checkout(root, branch, git_directory)
+    original_state = checkout_state()
+    configured_remote = git("config", "--get", f"branch.{branch}.remote", optional=True)
+    remote = args.remote or configured_remote or "origin"
+    if remote == ".":
+        raise RuntimeError("The branch tracks a local branch; specify --remote <name>.")
+    upstream = git("config", "--get", f"branch.{branch}.merge", optional=True)
+    head_branch = upstream.removeprefix("refs/heads/") if upstream else branch
+    validate_branch(head_branch)
+    base = refresh(remote, branch, head_branch, args.base)
+    head_ref = f"refs/remotes/{remote}/{head_branch}"
+    base_ref = f"refs/remotes/{remote}/{base}"
+    head = git("rev-parse", "--verify", head_ref + "^{commit}")
+    base_head = git("rev-parse", "--verify", base_ref + "^{commit}")
+    ancestor = git("merge-base", head, base_head)
+    behind = int(git("rev-list", "--count", head + ".." + base_head))
+    # Recheck after network operations before making the disposable changes.
+    check_checkout(root, branch, git_directory)
+    if checkout_state() != original_state:
+        raise RuntimeError("Checkout or staged changes changed while fetching; nothing discarded.")
+    restore_needed = check_restore(head)
+    git("config", f"branch.{branch}.reviewBase", base)
+    if restore_needed:
+        git("restore", "--source=" + head, "--staged", "--worktree", "--", ".")
+    git("switch", "--no-overwrite-ignore", "-C", branch, head)
+    if configured_remote != remote or upstream != "refs/heads/" + head_branch:
+        git("branch", "--set-upstream-to=" + head_ref, "--", branch)
+    git("reset", "--soft", ancestor)
+    print(f"Reviewing {branch} at {head[:12]} against {remote}/{base} (merge base {ancestor[:12]}).")
+    if behind:
+        print(f"The author's branch is behind its base by {behind} commit(s); no rebase performed.")
+    print(git("diff", "--cached", "--stat") or "No branch changes to review.")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("branch", nargs="?", help="local branch to review (default: current branch)")
@@ -190,39 +271,9 @@ def main() -> int:
     try:
         root = Path(git("rev-parse", "--show-toplevel"))
         os.chdir(root)
-        branch = args.branch or git("symbolic-ref", "--quiet", "--short", "HEAD", optional=True)
-        if not branch:
-            raise RuntimeError("Detached HEAD; specify a branch to review.")
-        validate_branch(branch)
-        check_checkout(root, branch)
-        configured_remote = git("config", "--get", f"branch.{branch}.remote", optional=True)
-        remote = args.remote or configured_remote or "origin"
-        if remote == ".":
-            raise RuntimeError("The branch tracks a local branch; specify --remote <name>.")
-        upstream = git("config", "--get", f"branch.{branch}.merge", optional=True)
-        head_branch = upstream.removeprefix("refs/heads/") if upstream else branch
-        validate_branch(head_branch)
-        base = refresh(remote, branch, head_branch, args.base)
-        head_ref = f"refs/remotes/{remote}/{head_branch}"
-        base_ref = f"refs/remotes/{remote}/{base}"
-        head = git("rev-parse", "--verify", head_ref + "^{commit}")
-        base_head = git("rev-parse", "--verify", base_ref + "^{commit}")
-        ancestor = git("merge-base", head, base_head)
-        behind = int(git("rev-list", "--count", head + ".." + base_head))
-        # Recheck after network operations before making the disposable changes.
-        check_checkout(root, branch)
-        restore_needed = check_restore(head)
-        git("config", f"branch.{branch}.reviewBase", base)
-        if restore_needed:
-            git("restore", "--source=" + head, "--staged", "--worktree", "--", ".")
-        git("switch", "--no-overwrite-ignore", "-C", branch, head)
-        if configured_remote != remote or upstream != "refs/heads/" + head_branch:
-            git("branch", "--set-upstream-to=" + head_ref, "--", branch)
-        git("reset", "--soft", ancestor)
-        print(f"Reviewing {branch} at {head[:12]} against {remote}/{base} (merge base {ancestor[:12]}).")
-        if behind:
-            print(f"The author's branch is behind its base by {behind} commit(s); no rebase performed.")
-        print(git("diff", "--cached", "--stat") or "No branch changes to review.")
+        git_directory = Path(git("rev-parse", "--absolute-git-dir"))
+        with review_lock():
+            review(args, root, git_directory)
     except (RuntimeError, OSError, ValueError, KeyError) as error:
         print(f"git review: {error}", file=sys.stderr)
         return 1

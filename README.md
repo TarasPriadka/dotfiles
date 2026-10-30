@@ -99,6 +99,13 @@ operation, or the target branch is checked out in another worktree. Untracked an
 ignored files are preserved; conflicting paths stop the command before cleanup.
 Failed PR lookups and fetches also leave the current review intact.
 
+The helper rejects `assume-unchanged` and `skip-worktree` index entries because
+they can hide local edits. A repository-wide advisory lock prevents overlapping
+`git review` runs, and a second check aborts if the checkout or staged contents
+changed while fetching. Pathnames retain their original bytes, including control
+characters and non-UTF-8 names. Branch shortcuts and reserved names are rejected.
+Incomplete file scans, including permission-denied warnings, stop before cleanup.
+
 The local target branch is replaced with the fetched remote head, then soft-reset
 to its merge base with the fetched PR base. Stacked PRs compare against their
 parent. If the author's branch is behind its base, the command reports that;
@@ -129,6 +136,15 @@ settings are respected. Disable the helper's connection reuse with
 `git config review.reuseSSH false`. Initial connections still pay the normal
 SSH handshake cost; a branch's first review also needs its PR base lookup
 before fetching. No global SSH configuration is changed.
+
+SSH reuse falls back to a normal connection for unsafe socket directories,
+writable temporary-path ancestors, and paths OpenSSH could expand or misparse.
+This command requires POSIX file locking. It trusts your local Git configuration,
+hooks, filters, credentials, and installed Git/GitHub CLI/SSH, just like ordinary
+Git commands; it is not a sandbox for untrusted repository configuration. Avoid
+editing or running other Git commands during cleanup. The advisory lock only
+coordinates this helper, and the multi-command update cannot provide rollback
+after a crash, disk failure, or an unrelated process changing files mid-update.
 
 Install or update with the programs installer below. New machines also get the
 command through `setup.sh`.
