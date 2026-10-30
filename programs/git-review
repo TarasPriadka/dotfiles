@@ -2,11 +2,13 @@
 """Fetch a branch and stage its PR diff, discarding the previous staged review."""
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
+from typing import Optional
 from urllib.parse import urlsplit
 
 
@@ -30,12 +32,13 @@ def validate_branch(branch: str) -> None:
 
 
 def check_checkout(root: Path, branch: str) -> None:
-    for marker in (
+    markers = (
         "MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "REBASE_HEAD",
         "rebase-merge", "rebase-apply", "sequencer", "BISECT_START",
-    ):
-        if Path(git("rev-parse", "--git-path", marker)).exists():
-            raise RuntimeError("Finish or abort the current Git operation before reviewing.")
+    )
+    paths = git("rev-parse", *(arg for marker in markers for arg in ("--git-path", marker)))
+    if any(Path(path).exists() for path in paths.splitlines()):
+        raise RuntimeError("Finish or abort the current Git operation before reviewing.")
     if git("ls-files", "--unmerged"):
         raise RuntimeError("Resolve unmerged files before reviewing.")
     changes = git("diff", "--name-only", "--ignore-submodules=none", "-z")
@@ -65,7 +68,7 @@ def github_repo(remote: str) -> str:
 
 def protect_untracked(head: str) -> None:
     # Include ignored files too: Git normally allows a checkout to overwrite them.
-    protected = {path.rstrip("/") for path in git("ls-files", "--others", "-z").split("\0") if path}
+    entries = git("ls-files", "--others", "--directory", "--no-empty-directory", "-z").split("\0")
     paths = set()
     for ref in ("HEAD", head):
         paths.update(path for path in git("ls-tree", "-r", "--name-only", "-z", ref).split("\0") if path)
@@ -73,10 +76,65 @@ def protect_untracked(head: str) -> None:
     for path in paths:
         parts = path.split("/")
         parents.update("/".join(parts[:index]) for index in range(1, len(parts)))
-    for path in sorted(protected):
+    overlapping_directories = []
+    protected = []
+    for entry in entries:
+        if not entry:
+            continue
+        path = entry.rstrip("/")
+        if entry.endswith("/") and path in parents:
+            overlapping_directories.append(":(literal)" + entry)
+        else:
+            protected.append(path)
+    if overlapping_directories:
+        protected.extend(git("ls-files", "--others", "-z", "--", *overlapping_directories).split("\0"))
+    for entry in protected:
+        path = entry.rstrip("/")
         parts = path.split("/")
         if path in parents or any("/".join(parts[:index]) in paths for index in range(1, len(parts) + 1)):
             raise RuntimeError(f"Untracked or ignored path would be overwritten: {path!r}. Nothing discarded.")
+
+
+def pr_base(remote: str, head_branch: str) -> str:
+    pr = json.loads(run(
+        "gh", "pr", "view", head_branch, "--repo", github_repo(remote),
+        "--json", "baseRefName,headRefName,isCrossRepository",
+    ))
+    if pr["isCrossRepository"] or pr["headRefName"] != head_branch:
+        raise RuntimeError("PR head does not match this remote branch; specify --remote and --base explicitly.")
+    return pr["baseRefName"]
+
+
+def fetch_review(remote: str, head_branch: str, base: str) -> None:
+    validate_branch(base)
+    if base == head_branch:
+        raise RuntimeError("The review branch must differ from its base branch.")
+    git(
+        "fetch", "--atomic", "--no-tags", "--", remote,
+        f"+refs/heads/{head_branch}:refs/remotes/{remote}/{head_branch}",
+        f"+refs/heads/{base}:refs/remotes/{remote}/{base}",
+    )
+
+
+def refresh(remote: str, branch: str, head_branch: str, base: Optional[str]) -> str:
+    if base:
+        fetch_review(remote, head_branch, base)
+        return base
+    hint = git("config", "--get", f"branch.{branch}.reviewBase", optional=True)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        lookup = executor.submit(pr_base, remote, head_branch)
+        fetch = executor.submit(fetch_review, remote, head_branch, hint) if hint else None
+        base = lookup.result()
+        if fetch:
+            try:
+                fetch.result()
+            except RuntimeError:
+                # A retargeted PR may have had its previous base branch deleted.
+                if hint == base:
+                    raise
+        if not fetch or hint != base:
+            fetch_review(remote, head_branch, base)
+    return base
 
 
 def main() -> int:
@@ -99,24 +157,9 @@ def main() -> int:
         upstream = git("config", "--get", f"branch.{branch}.merge", optional=True)
         head_branch = upstream.removeprefix("refs/heads/") if upstream else branch
         validate_branch(head_branch)
-        base = args.base
-        if not base:
-            pr = json.loads(run(
-                "gh", "pr", "view", head_branch, "--repo", github_repo(remote),
-                "--json", "baseRefName,headRefName,isCrossRepository",
-            ))
-            if pr["isCrossRepository"] or pr["headRefName"] != head_branch:
-                raise RuntimeError("PR head does not match this remote branch; specify --remote and --base explicitly.")
-            base = pr["baseRefName"]
-        validate_branch(base)
-        if base == head_branch:
-            raise RuntimeError("The review branch must differ from its base branch.")
+        base = refresh(remote, branch, head_branch, args.base)
         head_ref = f"refs/remotes/{remote}/{head_branch}"
         base_ref = f"refs/remotes/{remote}/{base}"
-        git(
-            "fetch", "--atomic", "--no-tags", "--", remote,
-            f"+refs/heads/{head_branch}:{head_ref}", f"+refs/heads/{base}:{base_ref}",
-        )
         head = git("rev-parse", "--verify", head_ref + "^{commit}")
         base_head = git("rev-parse", "--verify", base_ref + "^{commit}")
         ancestor = git("merge-base", head, base_head)
@@ -124,6 +167,7 @@ def main() -> int:
         # Recheck after network operations before making the disposable changes.
         check_checkout(root, branch)
         protect_untracked(head)
+        git("config", f"branch.{branch}.reviewBase", base)
         git("restore", "--source=HEAD", "--staged", "--worktree", "--", ".")
         git("switch", "--no-overwrite-ignore", "-C", branch, head)
         git("branch", "--set-upstream-to=" + head_ref, "--", branch)

@@ -111,6 +111,13 @@ is respected. Automatic base lookup requires an authenticated GitHub CLI and a
 PR whose head belongs to that remote's repository. Use `--base <remote-branch>`
 for branches without a PR, non-GitHub remotes, or explicit fork comparisons.
 
+Repeat reviews overlap the GitHub lookup and fetch using the previous base name
+stored in `branch.<name>.reviewBase` as a hint. The PR base is still checked live
+on every run; retargeting triggers a fetch of the new base before cleanup.
+File protection skips unrelated untracked directories, including ignored build
+and dependency trees, and inspects their contents only where a checkout could
+overlap them.
+
 Install or update with the programs installer below. New machines also get the
 command through `setup.sh`.
 

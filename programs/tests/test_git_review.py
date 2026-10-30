@@ -82,21 +82,34 @@ class ReviewTest(unittest.TestCase):
         self.assertEqual(self.git("rev-parse", "ORIG_HEAD"), head or self.head)
         self.assertEqual(self.git("rev-parse", "--abbrev-ref", "@{upstream}"), "origin/feature")
 
-    def fake_github(self, base="main", fail=False, cross_repository=False):
+    def fake_github(self, base="main", fail=False, cross_repository=False, wait_for_fetch=False):
         fake_bin = self.root / "bin"
         fake_bin.mkdir()
         real_git = shutil.which("git", path=self.env["PATH"])
         git_wrapper = fake_bin / "git"
+        fetch_signal = shlex.quote(str(self.root / "fetch-started"))
         git_wrapper.write_text(
             '#!/bin/sh\nif [ "$1" = remote ] && [ "$2" = get-url ]; then\n'
             "  printf '%s\\n' git@github.com:example/project.git\nelse\n"
+            f'  if [ "$1" = fetch ]; then touch {fetch_signal}; fi\n'
             f"  exec {shlex.quote(real_git)} \"$@\"\nfi\n"
         )
         git_wrapper.chmod(0o755)
         response = json.dumps({"baseRefName": base, "headRefName": "feature", "isCrossRepository": cross_repository})
         gh = fake_bin / "gh"
+        wait = ""
+        if wait_for_fetch:
+            wait = "python3 -c " + shlex.quote(
+                "from pathlib import Path\nimport time\n"
+                f"signal = Path({str(self.root / 'fetch-started')!r})\n"
+                "deadline = time.monotonic() + 5\n"
+                "while not signal.exists() and time.monotonic() < deadline:\n"
+                "    time.sleep(0.01)\n"
+                "assert signal.exists(), 'PR lookup and fetch did not overlap'\n"
+            ) + " || exit 1\n"
         gh.write_text(
             "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + shlex.quote(str(self.root / "gh-args")) + "\n"
+            + wait
             + ("echo 'PR lookup failed' >&2\nexit 1\n" if fail else "printf '%s\\n' " + shlex.quote(response) + "\n")
         )
         gh.chmod(0o755)
@@ -171,6 +184,39 @@ class ReviewTest(unittest.TestCase):
         self.assertIn("behind its base by 1", output)
         self.assertFalse((self.repo / "upstream").exists())
 
+    def test_repeated_review_overlaps_lookup_and_fetch(self):
+        self.review("--base", "main")
+        self.fake_github(wait_for_fetch=True)
+        self.review()
+        self.assert_review()
+
+    def test_retargeted_pr_fetches_new_base(self):
+        self.review("--base", "main")
+        self.git("branch", "parent", self.head, cwd=self.author)
+        self.git("push", "origin", "parent", cwd=self.author)
+        (self.author / "child").write_text("child\n")
+        self.commit("child")
+        self.git("push", "origin", "feature", cwd=self.author)
+        head = self.git("rev-parse", "HEAD", cwd=self.author)
+        self.fake_github(base="parent")
+        self.review()
+        self.assert_review(ancestor=self.head, head=head)
+        self.assertEqual(self.git("diff", "--cached", "--name-only"), "child")
+        self.assertEqual(self.git("config", "branch.feature.reviewBase"), "parent")
+
+    def test_deleted_base_hint_does_not_block_retargeted_pr(self):
+        self.review("--base", "main")
+        self.git("config", "branch.feature.reviewBase", "deleted-parent")
+        self.fake_github()
+        self.review()
+        self.assert_review()
+
+    def test_failed_speculative_fetch_preserves_review(self):
+        self.review("--base", "main")
+        self.git("push", "origin", ":feature", cwd=self.author)
+        self.fake_github()
+        self.assert_failure_preserves_review(message="couldn't find remote ref")
+
     def test_preserves_untracked_and_ignored_files(self):
         (self.repo / "notes").write_text("keep\n")
         (self.repo / "ignored").write_text("keep ignored\n")
@@ -238,6 +284,29 @@ class ReviewTest(unittest.TestCase):
         self.commit("folder")
         self.git("push", "origin", "feature", cwd=self.author)
         (self.repo / "folder").write_text("keep\n")
+        self.assert_failure_preserves_review("--base", "main", message="would be overwritten")
+
+    def test_disjoint_untracked_file_in_new_remote_directory_is_preserved(self):
+        (self.author / "folder").mkdir()
+        (self.author / "folder/file").write_text("remote\n")
+        self.commit("folder")
+        self.git("push", "origin", "feature", cwd=self.author)
+        head = self.git("rev-parse", "HEAD", cwd=self.author)
+        (self.repo / "folder").mkdir()
+        (self.repo / "folder/notes").write_text("keep\n")
+        self.review("--base", "main")
+        self.assert_review(head=head)
+        self.assertEqual((self.repo / "folder/notes").read_text(), "keep\n")
+
+    def test_ignored_collision_inside_untracked_directory_is_preserved(self):
+        (self.author / "folder").mkdir()
+        (self.author / "folder/file").write_text("remote\n")
+        self.commit("folder")
+        self.git("push", "origin", "feature", cwd=self.author)
+        (self.repo / "folder").mkdir()
+        (self.repo / "folder/file").write_text("keep ignored\n")
+        with (self.repo / ".git/info/exclude").open("a") as exclude:
+            exclude.write("folder/\n")
         self.assert_failure_preserves_review("--base", "main", message="would be overwritten")
 
     def test_same_base_is_rejected_without_cleanup(self):
