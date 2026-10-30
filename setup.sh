@@ -130,9 +130,9 @@ curl -fsSL "$RAW_BASE/skills/install.sh" | bash
 success "Personal Codex skills installed"
 
 # ── Terminal programs ──────────────────────────────────────────────────────
-info "Installing night, coin, beach, and git-uncommit..."
+info "Installing night, coin, beach, git-uncommit, and git-review..."
 curl -fsSL "$RAW_BASE/programs/install.sh" | bash
-success "Night, coin, beach, and git-uncommit installed in ~/.local/bin"
+success "Night, coin, beach, git-uncommit, and git-review installed in ~/.local/bin"
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
@@ -155,6 +155,6 @@ echo ""
 echo "3. Restart your shell:"
 echo "   exec zsh"
 echo ""
-echo "4. Authenticate the GitHub CLI for git uncommit (if not already authenticated):"
+echo "4. Authenticate the GitHub CLI for git uncommit and git review (if not already authenticated):"
 echo "   gh auth login"
 echo ""

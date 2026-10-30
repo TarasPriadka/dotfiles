@@ -8,19 +8,21 @@ bin_dir="$user_home/.local/bin"
 download_dir="$(mktemp -d)"
 trap 'rm -rf -- "$download_dir"' EXIT
 
-for program in night coin beach git-uncommit; do
+for program in night coin beach git-uncommit git-review; do
     curl -fsSL --retry 2 "$raw_base/programs/$program" -o "$download_dir/$program"
     python3 -m py_compile "$download_dir/$program"
 done
 
 mkdir -p "$bin_dir"
-for program in night coin beach git-uncommit; do
+for program in night coin beach git-uncommit git-review; do
     install -m 755 "$download_dir/$program" "$bin_dir/$program"
 done
 
 # Resolve HOME when the alias runs, rather than embedding the installer's environment.
 # shellcheck disable=SC2016
 git config --file "$user_home/.gitconfig" alias.uncommit '!"$HOME/.local/bin/git-uncommit"'
+# shellcheck disable=SC2016
+git config --file "$user_home/.gitconfig" alias.review '!"$HOME/.local/bin/git-review"'
 
-echo "Installed night, coin, beach, and git-uncommit in $bin_dir"
-echo "Updated git uncommit in $user_home/.gitconfig; other Git settings preserved."
+echo "Installed night, coin, beach, git-uncommit, and git-review in $bin_dir"
+echo "Updated git uncommit and git review in $user_home/.gitconfig; other Git settings preserved."

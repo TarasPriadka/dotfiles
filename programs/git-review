@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+"""Fetch a branch and stage its PR diff, discarding the previous staged review."""
+
+import argparse
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+from urllib.parse import urlsplit
+
+
+def run(*args: str, optional: bool = False) -> str:
+    result = subprocess.run(args, text=True, capture_output=True)
+    if result.returncode:
+        if optional and result.returncode == 1:
+            return ""
+        raise RuntimeError(result.stderr.strip() or f"{' '.join(args)} failed")
+    return result.stdout.rstrip("\n")
+
+
+def git(*args: str, optional: bool = False) -> str:
+    return run("git", *args, optional=optional)
+
+
+def validate_branch(branch: str) -> None:
+    if not branch or branch.startswith("-"):
+        raise RuntimeError(f"Invalid branch name: {branch!r}")
+    git("check-ref-format", "refs/heads/" + branch)
+
+
+def check_checkout(root: Path, branch: str) -> None:
+    for marker in (
+        "MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "REBASE_HEAD",
+        "rebase-merge", "rebase-apply", "sequencer", "BISECT_START",
+    ):
+        if Path(git("rev-parse", "--git-path", marker)).exists():
+            raise RuntimeError("Finish or abort the current Git operation before reviewing.")
+    if git("ls-files", "--unmerged"):
+        raise RuntimeError("Resolve unmerged files before reviewing.")
+    changes = git("diff", "--name-only", "--ignore-submodules=none", "-z")
+    if changes:
+        raise RuntimeError("Unstaged edits exist; stage or save them before reviewing. Nothing discarded.")
+    for entry in git("worktree", "list", "--porcelain", "-z").split("\0\0"):
+        fields = entry.split("\0")
+        if "branch refs/heads/" + branch in fields:
+            location = next(field.removeprefix("worktree ") for field in fields if field.startswith("worktree "))
+            if Path(location).resolve() != root.resolve():
+                raise RuntimeError(f"Branch {branch} is checked out in another worktree: {location}")
+
+
+def github_repo(remote: str) -> str:
+    url = git("remote", "get-url", "--", remote)
+    if "://" not in url and ":" in url:
+        host, path = url.split(":", 1)
+        host = host.rsplit("@", 1)[-1]
+    else:
+        parsed = urlsplit(url)
+        host, path = parsed.hostname, parsed.path
+    path = path.strip("/").removesuffix(".git")
+    if not host or len(path.split("/")) != 2:
+        raise RuntimeError("Cannot identify the GitHub repository; use --base <branch> to skip PR lookup.")
+    return f"{host}/{path}"
+
+
+def protect_untracked(head: str) -> None:
+    # Include ignored files too: Git normally allows a checkout to overwrite them.
+    protected = {path.rstrip("/") for path in git("ls-files", "--others", "-z").split("\0") if path}
+    paths = set()
+    for ref in ("HEAD", head):
+        paths.update(path for path in git("ls-tree", "-r", "--name-only", "-z", ref).split("\0") if path)
+    parents = set()
+    for path in paths:
+        parts = path.split("/")
+        parents.update("/".join(parts[:index]) for index in range(1, len(parts)))
+    for path in sorted(protected):
+        parts = path.split("/")
+        if path in parents or any("/".join(parts[:index]) in paths for index in range(1, len(parts) + 1)):
+            raise RuntimeError(f"Untracked or ignored path would be overwritten: {path!r}. Nothing discarded.")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("branch", nargs="?", help="local branch to review (default: current branch)")
+    parser.add_argument("--base", metavar="BRANCH", help="remote base branch, skipping GitHub PR lookup")
+    parser.add_argument("--remote", help="remote to fetch (default: branch's upstream remote, or origin)")
+    args = parser.parse_args()
+    try:
+        root = Path(git("rev-parse", "--show-toplevel"))
+        os.chdir(root)
+        branch = args.branch or git("symbolic-ref", "--quiet", "--short", "HEAD", optional=True)
+        if not branch:
+            raise RuntimeError("Detached HEAD; specify a branch to review.")
+        validate_branch(branch)
+        check_checkout(root, branch)
+        remote = args.remote or git("config", "--get", f"branch.{branch}.remote", optional=True) or "origin"
+        if remote == ".":
+            raise RuntimeError("The branch tracks a local branch; specify --remote <name>.")
+        upstream = git("config", "--get", f"branch.{branch}.merge", optional=True)
+        head_branch = upstream.removeprefix("refs/heads/") if upstream else branch
+        validate_branch(head_branch)
+        base = args.base
+        if not base:
+            pr = json.loads(run(
+                "gh", "pr", "view", head_branch, "--repo", github_repo(remote),
+                "--json", "baseRefName,headRefName,isCrossRepository",
+            ))
+            if pr["isCrossRepository"] or pr["headRefName"] != head_branch:
+                raise RuntimeError("PR head does not match this remote branch; specify --remote and --base explicitly.")
+            base = pr["baseRefName"]
+        validate_branch(base)
+        if base == head_branch:
+            raise RuntimeError("The review branch must differ from its base branch.")
+        head_ref = f"refs/remotes/{remote}/{head_branch}"
+        base_ref = f"refs/remotes/{remote}/{base}"
+        git(
+            "fetch", "--atomic", "--no-tags", "--", remote,
+            f"+refs/heads/{head_branch}:{head_ref}", f"+refs/heads/{base}:{base_ref}",
+        )
+        head = git("rev-parse", "--verify", head_ref + "^{commit}")
+        base_head = git("rev-parse", "--verify", base_ref + "^{commit}")
+        ancestor = git("merge-base", head, base_head)
+        behind = int(git("rev-list", "--count", head + ".." + base_head))
+        # Recheck after network operations before making the disposable changes.
+        check_checkout(root, branch)
+        protect_untracked(head)
+        git("restore", "--source=HEAD", "--staged", "--worktree", "--", ".")
+        git("switch", "--no-overwrite-ignore", "-C", branch, head)
+        git("branch", "--set-upstream-to=" + head_ref, "--", branch)
+        git("reset", "--soft", ancestor)
+        print(f"Reviewing {branch} at {head[:12]} against {remote}/{base} (merge base {ancestor[:12]}).")
+        if behind:
+            print(f"The author's branch is behind its base by {behind} commit(s); no rebase performed.")
+        print(git("diff", "--cached", "--stat") or "No branch changes to review.")
+    except (RuntimeError, OSError, ValueError, KeyError) as error:
+        print(f"git review: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

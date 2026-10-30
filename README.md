@@ -13,7 +13,7 @@ The script will:
 - Download and place zshrc, gitconfig, vimrc, tmux.conf
 - Generate SSH auth key (`~/.ssh/id_ed25519`) and signing key (`~/.ssh/ssh_sign`)
 - Prompt for your name/email and configure git
-- Install `night`, `coin`, `beach`, and the `git-uncommit` helper in `~/.local/bin/`
+- Install `night`, `coin`, `beach`, `git-uncommit`, and `git-review` in `~/.local/bin/`
 
 After running, add both keys to GitHub and run `exec zsh`.
 
@@ -60,7 +60,7 @@ source lives in `programs/` and the Linux setup script installs them in
 `night` starts with its status and controls hidden; press `i` to show them or
 `h` for help.
 
-To install or update these programs and the `git uncommit` alias:
+To install or update these programs and the Git helper aliases:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TarasPriadka/dotfiles/main/programs/install.sh | bash
@@ -81,7 +81,40 @@ It caches scenery and palm shapes and sends only changed cells to the terminal.
 For a single plain frame, pipe any program to a file, for example
 `beach --frames 1 > beach.txt`. All three also accept `--no-color`.
 
-## Reviewing a branch with git uncommit
+## Switching reviews with git review
+
+`git review` replaces the previous staged review with the latest remote branch's
+PR diff. It fetches the head and base before cleanup, accepts force-pushed history,
+and leaves the combined change staged for review in your editor.
+
+```bash
+git review someone/branch       # Switch to and prepare this branch
+git review                      # Refresh the current review after a push
+git review feature --base main  # Specify a remote base without GitHub lookup
+```
+
+The command discards **all staged changes**, including staged additions and
+deletions. It stops before cleanup if there are unstaged edits, an active Git
+operation, or the target branch is checked out in another worktree. Untracked and
+ignored files are preserved; conflicting paths stop the command before cleanup.
+Failed PR lookups and fetches also leave the current review intact.
+
+The local target branch is replaced with the fetched remote head, then soft-reset
+to its merge base with the fetched PR base. Stacked PRs compare against their
+parent. If the author's branch is behind its base, the command reports that;
+it does not rebase, merge, or push. The fetched head is available in `ORIG_HEAD`
+and the remote-tracking ref after the reset.
+
+The remote defaults to the target branch's configured upstream remote, or
+`origin`; use `--remote <name>` to override it. A configured upstream branch name
+is respected. Automatic base lookup requires an authenticated GitHub CLI and a
+PR whose head belongs to that remote's repository. Use `--base <remote-branch>`
+for branches without a PR, non-GitHub remotes, or explicit fork comparisons.
+
+Install or update with the programs installer below. New machines also get the
+command through `setup.sh`.
+
+## Uncommitting with git uncommit
 
 `git uncommit` soft-resets the current branch to its common ancestor with the
 PR's parent branch, leaving the branch's combined changes staged for review in
@@ -112,14 +145,14 @@ To install or update (requires Git, Python 3, and curl):
 curl -fsSL https://raw.githubusercontent.com/TarasPriadka/dotfiles/main/programs/install.sh | bash
 ```
 
-The installer updates the helper and only `alias.uncommit` in `~/.gitconfig`,
+The installer updates both helpers and their aliases in `~/.gitconfig`,
 preserving your other Git settings. New machines get it through `setup.sh`.
 Run `gh auth login` if GitHub CLI authentication is needed.
 
-Run the helper's tests without network access:
+Run both helpers' tests without network access:
 
 ```bash
-python3 -m unittest discover -s programs/tests -p test_git_uncommit.py -v
+python3 -m unittest discover -s programs/tests -p 'test_git_*.py' -v
 ```
 
 ## Sync Configs Only
