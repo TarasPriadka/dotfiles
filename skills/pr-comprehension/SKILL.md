@@ -48,14 +48,18 @@ a diff or add PR-specific headings and revision metadata without a PR target.
 ## Reuse prepared reviews
 
 Before investigating queued work, consult the installed `pr-review-queue` skill.
-A request to explain or review a PR or staged diff can reuse a prepared review
-when its source comparison matches. Start the discussion from the saved
-explanation, findings, and limits; use focused source reads for follow-ups.
-Do not launch reviewers or repeat verification merely because a new turn asks
-for a review. Let the queue workflow assess changes and save useful discussion
-notes. With no matching entry, continue this normal comprehension workflow
-without creating queue files. When invoked during batch preparation, return the
-explanation and checked sources to the queue coordinator for storage.
+Check for saved analysis and existing jobs before launching anything. Use available
+overviews/findings with their reviewed revision and limits, even when freshness is
+unknown or newer code exists; say that the analysis comes from the queue. Focused
+source reads answer follow-ups without starting another review. Explicit queue
+updates own discovery and freshness work; ordinary discussion does not rerun bots.
+
+Join existing preparation rather than duplicate it. For a PR cache miss, follow
+the queue's single-PR preparation/save workflow, preserving an explicit overview-only
+request. For local-only work without a PR identity, use this normal workflow.
+Save useful discussion notes in the existing entry. During batch preparation,
+overview runs independently of review bots and returns its explanation and checked
+sources for immediate storage; it does not wait for their reports or tests.
 
 Read [operations.md](operations.md) before gathering PR data. Read
 [examples.md](examples.md) before writing the first explanation in a run.

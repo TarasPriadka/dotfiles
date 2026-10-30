@@ -1,108 +1,61 @@
-# Queue scenarios
+# Workflow scenarios
 
-## Discover my review requests
+## Background preparation and later discussion
 
-"Prepare PRs for my review."
+"Update my review queue in the background."
 
-Identify the authenticated user and current repository. Retrieve every page of open
-PRs requesting that user's review; do not ask for their numbers. Suppose #123 is
-new, #124 has matching preparation, and #125 has changed. Prepare #123, reuse #124,
-and refresh the affected results for #125. Save the current matches first in the
-index and report readiness. Do not post comments or edit PR source.
-
-Later: "Prepare PRs for my review again."
-
-Discover the selection again. Add new requests and reconcile current comparisons.
-If #123 has merged or no longer requests review, retain its notes and reports among
-other saved entries. If a previously deleted PR is still requested, this fresh
-discovery request authorizes adding it again. A plain "show my queue" uses local
-files and the last known grouping without querying GitHub. If discovery fails or
-is truncated, report the limitation and preserve existing entries and grouping.
-
-"Prepare my review requests across organization example-org."
-
-Use the explicit organization scope rather than the current repository, paginate
-all results, and keep full forge/repository identities for entries. Assignment or
-mentions alone do not select additional PRs.
-
-## Batch first, discuss later
-
-"Prepare these eight PRs so I can review them tomorrow."
-
-Complete the code reviews, explanations, design/scope assessments, and relevant
-verification. Preserve the review skill's independent reviewer isolation. Save
-every check result locally and return the queue index; do not post to GitHub.
-Compare each stacked PR against its own base. Reading a prerequisite does not add
-it to the queue. If tests cannot run, save the reason and the resulting evidence
-limit instead of claiming a pass.
+Discover all review requests, check saved entries for merged/closed PRs, capture
+revisions once and reuse unchanged results. Confirm a real runner; persist its
+handle/manifest. Fill slots with independent overview/review jobs, save results as
+they arrive and return the runner/index link. No PR builds/tests. Without a capable
+runner, leave a pending manifest and explain the missing capability; do not keep
+the foreground conversation waiting as a substitute for background execution.
 
 Later: "Help me review #123."
 
-The reviewed comparison still matches. Read the saved note and reports, state that
-the prepared review is being reused, and start with the concrete walkthrough.
-No new reviewers or repeated test run are needed. Follow-up questions cause
-focused source reading and useful notes, not repeated review cycles.
+Find the entry before starting bots. Say it is the prepared review from the queue;
+explain its saved change/findings/limits. Focused reads answer follow-ups and useful
+decisions go into notes. No discovery, new review or whole-queue refresh.
 
-## Staged changes after git uncommit
+## Missing entry or work already running
 
-The saved review covers B → H. The user soft-resets to B, leaving H in the index,
-and asks "review the staged changes."
+"Review #456" has neither an entry nor live work: prepare only #456, save its
+overview/reviews and discuss them. Explicit overview-only requests keep that scope.
+If #456 is already running, join/prioritize it without a duplicate. Use finished
+outputs with limits, or discuss an older saved snapshot while its update continues.
 
-The matching script compares HEAD's tree with B and the index with H. Reuse the
-prepared review despite the local HEAD and current branch's associated PR changing.
-An unrelated unstaged edit does not enter the staged review. If that edit is later
-staged, inspect its delta before claiming the saved review covers it.
+## Parallelism and stopping
 
-## Content and context changes
+Nine PRs produce 36 jobs with three available slots. Keep slots full; each
+completion dispatches another eligible PR/role immediately. No overview dependency,
+whole-role serial loop, nested-coordinator wait or slowest-PR publication barrier.
+Runtime is bounded by actual capacity/bot duration plus small coordination overhead.
 
-A new commit has exactly the reviewed tree and the same base tree: reuse even
-though its SHA differs. If a dependency changed during a rebase, inspect the base
-and head changes and their effect on the saved conclusions. Equal patch text alone
-does not establish equal context. Update affected checks, or explain why a full
-rerun is warranted. A title edit, approval, or new bot comment does not restart
-the batch. A substantive new comment can require a focused follow-up.
+One bot returns limited analysis; another crashes. Save the former as complete,
+the latter as failed, and publish other results. No coverage-audit loop, extra
+reviewer, automatic retry or build. An explicit update retries missing/failed roles
+once while reusing completed roles.
 
-"Rerun the full review of #123" explicitly requests fresh reviewers. Preserve
-blind/ownership isolation from the prior reports and save the new results.
+#123 moves H1 to H2 mid-run: finish/save H1 once with its revision; do not chase H2.
+Later discussion uses H1 with a known freshness note. The next explicit update
+prepares H2. Equal base/head trees reuse results even with different commit IDs.
+After soft reset, matching staged content reuses the saved review; unstaged edits
+are excluded. Rule/source drift is reported, not an automatic restart instruction.
 
-## A simpler PR needs fewer separate checks
+## Cleanup and races
 
-A small configuration change still gets its code review and an explanation of
-where the configuration is consumed. Record why a separate architecture critique
-or split proposal adds nothing. Reuse the code review's existing performance,
-ownership, and convention checks instead of launching duplicate specialist work.
+An update confirms #123 merged/#124 closed: invalidate their pending attempts and
+prune entries/index rows when not active/marked to keep. Unknown forge status does
+not authorize deletion; open entries remain. Never delete repository branches/files.
+Late workers cannot resurrect removed entries or overwrite newer attempts. Fresh
+explicit discovery can add a reopened/requested PR again. Single-PR discussion
+does not trigger whole-queue cleanup.
 
-## Partial results and human edits
+## General workflow check
 
-One PR's required review fails halfway through. Save completed checks, leave code
-review incomplete, and continue the other PRs. Resuming fills the missing work.
-Verification unavailable in this environment remains a clearly limited check.
-
-The user edits `review.md` or adds decisions to `notes.md`. Preserve that text
-when refreshing. A checksum difference protects edits; it does not invalidate
-the source comparison. Showing the queue reads local files without GitHub calls.
-
-## Existing explanations and deleted entries
-
-An old entry contains only `overview.md` and `evidence.md`. Reuse its supported
-understanding, but do not claim reviewers already ran. If a matching completed
-review exists in the current session, import it instead of repeating it.
-
-A user deletes an entry or clears the queue. Do not restore it from the index,
-conversation, or a pending worker result. Adding that PR again requires a new
-explicit addition, which can be a fresh review-request discovery request. Linked
-worktrees always share the main checkout's queue.
-
-## Check this workflow
-
-Run the comparison helper's tests in a disposable directory:
-
-```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
-  -s <skill-directory>/tests -v
-```
-
-The cases exercise matching staged content after a soft reset, source/context
-changes, identical trees under different commits, missing/edited reports, changed
-rules, and incomplete legacy entries. Also walk through the prompts above to
-check that the written workflow starts discussion without launching reviewers.
+Dry-run these scenarios with a small simulated queue: new PR, saved PR, already
+running PR, merged PR and a head that changes mid-run. Check that free slots fill,
+outputs publish per PR, cached discussion starts no bots, live work is joined,
+merged entries are pruned without late resurrection, and changed heads do not
+restart the run. Also check that an unavailable runner is reported honestly.
+Use simulated outputs, not real PR reviews or builds, to validate the instructions.

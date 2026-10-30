@@ -1,125 +1,103 @@
-# Storage and comparison
+# Shared workspace and saved results
 
-## One queue shared across worktrees
-
-Resolve the main checkout from the first record of
-`git worktree list --porcelain -z`. Store `.pr-review-queue/` there, regardless of
-its checked-out branch. Do not switch it to `main` or create a separate queue in
-a linked worktree. If no main checkout is available, resolve a destination with
-the user. If necessary, add only `/.pr-review-queue/` to that checkout's local Git
-exclude file; do not stage artifacts or modify tracked ignore files.
-
-Namespace by full forge identity:
+Resolve the main checkout from the first record of `git worktree list --porcelain
+-z`. All linked worktrees use its `.pr-review-queue/`; do not switch its branch.
+If needed, locally exclude only `/.pr-review-queue/`, leaving tracked ignores alone.
+Namespace entries by full forge/repository/PR identity.
 
 ```text
 .pr-review-queue/
   index.md
+  .jobs/<run-id>/
+    manifest.json
+    progress.json
+    runner.log
   github.com/owner/repo/123/
+    overview.md
     review.md
-    checks/
-      code-review.md
-      design.md
-      scope.md
-      verification.md
-    notes.md                 # Only when discussion adds useful context.
+    reviewers/informed.md
+    reviewers/blind.md
+    reviewers/ownership.md
+    notes.md
     state.json
 ```
 
-`review.md` is the reading surface: PR link/title, concise comprehension
-walkthrough, consolidated findings, and material verification limits. Each check
-report holds its factual results, source links, and relevant limitations. Keep the
-individual code reviewers' reports under labeled sections of `code-review.md`.
-Save additional specialist reports under `checks/` when run. A short reason for
-not applying a design/scope check is sufficient; no empty report template is needed.
+Overview explains need, before/after behavior and scope. Review contains findings,
+source links and limits; individual reports retain factual evidence/lifecycle
+traces, not private reasoning transcripts. Notes preserve discussion decisions.
+Existing combined `review.md`/`checks/code-review.md` remains usable without migration.
 
-Directories are membership; the index is derived. Explicit additions include the
-selection authorized by a fresh review-request discovery request. Such a request
-can add a previously deleted PR again when it still matches. A refresh of saved
-reviews, worker completion, or old index must not recreate an entry the user deleted.
-Before completing a worker result, verify the entry still exists and belongs to
-that preparation. Do not delete entries merely because a PR merged.
+## Results, completion and freshness
 
-After discovery, group current review requests separately from other saved entries
-in the index. A local show preserves that last known grouping without claiming it
-is live GitHub state. Discovery failure must not mark existing entries as no longer
-requested. Keep selection information out of the code-review completion record;
-it does not change whether a prepared comparison is covered. Keep only current
-generated reports, with no automatic history or global store.
-
-## Small completion record
-
-Use this shape; paths are relative to the entry unless they identify review rules:
+Record the captured comparison and jobs actually requested:
 
 ```json
 {
-  "base": "actual reviewed merge-base commit SHA",
-  "head": "reviewed head commit SHA",
-  "checks": {
-    "code-review": "complete",
-    "design": "complete",
-    "scope": "not-applicable",
-    "verification": "limited"
+  "base": "reviewed merge-base SHA",
+  "head": "reviewed head SHA",
+  "expected_jobs": ["overview", "informed", "blind", "ownership"],
+  "jobs": {
+    "overview": {"status": "complete", "report": "overview.md"},
+    "informed": {"status": "complete", "report": "reviewers/informed.md"},
+    "blind": {"status": "failed", "error": "worker exited without a report"},
+    "ownership": {"status": "complete", "report": "reviewers/ownership.md"}
   },
-  "review_rules": {"REVIEW.md": "sha256 of the reviewed file"},
-  "files": {
-    "review.md": "sha256 of generated content",
-    "checks/code-review.md": "sha256 of generated content",
-    "checks/design.md": "sha256 of generated content",
-    "checks/scope.md": "sha256 of generated content",
-    "checks/verification.md": "sha256 of generated content"
-  }
+  "review_rules": {"REVIEW.md": "sha256 of reviewed instructions"},
+  "files": {"overview.md": "sha256", "review.md": "sha256"}
 }
 ```
 
-Allowed check states are `complete`, `limited`, `not-applicable`, and `incomplete`.
-Record all four areas above and any extra checks selected. A limited result must
-explain the missing evidence; an unavailable required code review is incomplete.
-Record the actual instruction sources used for the review; paths are relative to
-the repository or absolute for personal/installed rules. Fingerprints identify
-changed instructions so their effect can be assessed, not to demand a whole rerun.
+States: `pending`, `running`, `complete`, `failed`, `cancelled`. Each complete job
+names its report; hash every generated report in `files`, not just those shown.
+Coverage limitations are report/job annotations, not job failures. An explicit
+overview-only request can select only that role; do not call it a code review.
 
-Identity comes from the path and PR link; purpose comes from the note. Do not
-duplicate titles, authors, branches, timestamps, request IDs, PR state, discussion
-fingerprints, or summaries in this record. Git objects provide tree identities
-from the base/head commits. Do not invent facts for missing objects or evidence.
+A run finishes once every task is terminal (`complete`, `failed`, `cancelled`),
+even when some roles failed. Record that separately from whether every requested
+role produced a report. Failed roles do not keep a run waiting or hide available
+results. No design/scope/verification/coverage gate is required, and completion
+never implies code execution.
 
-Write reports before completion metadata, using atomic replacement where possible.
-Missing metadata, missing reports, or an incomplete check means preparation needs
-attention. Report checks that could not run without implying they passed.
+## Job records and concurrency
 
-Checksums protect human edits. Read existing reports before replacement; if their
-hashes differ, preserve the edits and reconcile or obtain direction before
-overwriting. Edited prose does not by itself require another code review.
-`notes.md` is maintained separately and never replaced by a batch refresh.
+Manifest: run ID, runner handle, frozen selection/comparisons and roles. Progress:
+task status and worker handles. A running update is separate from the prior saved
+snapshot, which remains readable. A manifest without a confirmed live runner is
+pending/interrupted, not proof of running work.
 
-## Match a staged or committed comparison
+Use short per-entry/task claims with runner ownership to prevent duplicate dispatch
+and publication; do not hold locks during analysis. Runner completion/failure
+releases claims. Recover stale claims using runner liveness, not elapsed time alone,
+so discussion cannot wait indefinitely on a dead worker.
 
-For a staged review, including a PR opened with `git uncommit`:
+Write private task output, publish files and atomically replace completion metadata
+under the entry's short write claim. Verify membership/attempt before publishing.
+Cleanup invalidates attempts before deletion. Workers never recreate a missing
+entry. Active readers/explicit keep markers defer pruning. Delete only confirmed
+merged/closed entries, never unrelated repository files.
 
-```bash
-python3 <skill-directory>/scripts/check_review.py \
-  --entry <main-checkout>/.pr-review-queue/github.com/owner/repo/123 \
-  --repo <current-checkout> --base HEAD --head index
-```
+Compare recorded checksums before replacing generated text; reconcile human edits
+instead of overwriting them. Notes are maintained separately. Manual deletion
+removes membership. Derive the index from entries/live job records, distinguishing
+results available, jobs running/failed and known drift. Unknown forge status leaves
+membership intact.
 
-For a published PR or clean branch, resolve the current actual merge base/head
-and pass those commit references to `--base` and `--head`. Matching an index to a
-saved head examines all tracked source, including mode changes; unstaged files
-are outside that target. Read matching staged source from the index when needed.
+## Read before starting work
 
-The script returns JSON with `reusable`, `changed`, `incomplete`, or `unverified`,
-plus reasons and any edited reports. It compares both base and target trees and
-checks review-rule fingerprints. It performs no writes or network access. A
-`changed` result identifies work to inspect, not an instruction to rerun reviewers.
-All outcomes exit successfully; malformed invocation is a command error.
+Read the saved overview/review, relevant notes and state directly. Existing reports
+are usable even with partial/missing metadata; say which revision and roles they
+cover. Check live job records before scheduling missing work. Do not make a cached
+discussion wait for migration, completeness checks or a comparison helper.
 
-## Existing queues
+For an explicitly requested update, compare actual merge-base/head contents with
+the saved comparison using read-only Git views. Include modes and exclude unstaged
+edits from an index target. Different commits with identical trees match. Changed
+source/context/rules gets a freshness note; missing objects leave it unverified.
+These observations do not start work during ordinary discussion.
 
-Preserve old `overview.md`, `evidence.md`, and metadata until their useful content
-and edits have been carried forward. Old `ready` means explanation prepared,
-not code review completed. Import an already completed review only when its
-comparison and evidence can be established, including from the current session;
-do not rerun it merely to fill the new format. Otherwise retain the explanation
-and mark code review incomplete. Remove obsolete generated files only when
-authorized and repository deletion rules permit; never require deletion to reuse
-an entry. This skill update alone does not migrate or rerun existing queues.
+The existing `scripts/check_review.py` is a legacy comparison tool with older
+completion gates. It is not part of this workflow and must not gate report reuse.
+
+Older `checks` records and explanation-only entries stay readable. Missing new
+schema fields do not justify redoing saved analysis or inventing prior bot reports.
+Preserve old files/limits; migrate only when useful work requires an entry update.
