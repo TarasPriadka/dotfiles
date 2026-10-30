@@ -4,7 +4,8 @@ description: >
   Prepare and cache code reviews and PR overviews for later discussion. Use for
   explicit discovery/background queue updates, and before discussing or reviewing
   a PR: use saved analysis first, join existing work, or prepare and save a missing
-  PR. Prune merged/closed entries during queue maintenance.
+  PR. Check freshness and summarize later changes without rerunning bots; ask before
+  updating stale reviews. Prune merged/closed entries during queue maintenance.
 ---
 
 # PR review queue
@@ -22,6 +23,7 @@ fetching, scheduling, consolidation and storage overhead.
 - **Discuss/review a PR:** look in the shared workspace first. Read its saved
   overview, findings and relevant notes before investigating or launching bots.
   Say once: "I'm using the prepared review from the queue," naming its revision.
+  Make the lightweight freshness check below; it does not start a new review.
 - **Cache miss:** prepare only that PR, save its results and discuss them. Do not
   discover unrelated PRs. Honor explicit overview-only or findings-only scope.
 - **Show/status:** read the local index and job records; no GitHub fetch or new work.
@@ -37,7 +39,8 @@ Keep result availability, job completion, coverage limits and freshness separate
 
 | Available work | Discussion behavior |
 | --- | --- |
-| Saved analysis | Explain it directly, preserving its reviewed revision and limits. |
+| Saved analysis | Explain it directly, check freshness, and preserve its reviewed revision and limits. |
+| Stale saved analysis | Show the old review plus a short unreviewed-change summary; ask before rerunning. |
 | Saved analysis with an update running | Use the saved snapshot and mention the update. |
 | Running job, no saved analysis | Join/prioritize it; use finished outputs as they arrive. |
 | No entry or job | Run and save the single-PR analysis jobs. |
@@ -45,10 +48,28 @@ Keep result availability, job completion, coverage limits and freshness separate
 
 Do not block useful discussion on other PRs, optional checks, complete coverage or
 CI success. Name the specific dependency if the requested result is still running.
-Never duplicate a running job. A newer head or changed review rules does not erase
-saved analysis or automatically launch another review: use the snapshot with a
-freshness note and refresh when requested. Focused source reads can answer a
-question without restarting bots. Save consequential discoveries/decisions in notes.
+Never duplicate a running job. Focused source reads can answer questions without
+restarting bots. Save consequential discoveries/decisions in notes.
+
+On opening a PR discussion, check only that PR's current head and actual merge
+base against the saved comparison. Reuse local objects/tree IDs where available;
+fetch only missing comparison data. Do not scan the queue, poll heads, inspect all
+CI runs or launch bots for this check. Identical source/context trees remain
+covered after a commit-ID-only change. Source/context or relevant rule changes
+make the saved review stale; missing evidence makes freshness unverified.
+
+When stale, keep the saved review visible and give a short, factual summary of
+changes since it: new commits/changed areas and whether old finding locations were
+touched. Separate changes to the PR from base-context changes. This is a delta
+summary, not a correctness review: do not silently mark old findings fixed or
+claim the new code is reviewed. Then ask once for that revision: "Rerun the bots
+and update the saved review?" Until the user agrees, use the old snapshot with its
+limits. If that update is already running, join it instead of asking to duplicate
+it. An explicit rerun request is already authorization; do not ask again.
+
+Say which roles finished and disclose missing reports/coverage limits. A review
+is ready for its recorded source when the requested bots returned and their
+reports are saved; partial or stale results remain useful but must be labeled.
 
 For staged work, compare local HEAD to the index, excluding unstaged edits. Match
 saved source contents rather than branch association after a soft reset. Do not

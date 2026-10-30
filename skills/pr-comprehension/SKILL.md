@@ -51,8 +51,11 @@ Before investigating queued work, consult the installed `pr-review-queue` skill.
 Check for saved analysis and existing jobs before launching anything. Use available
 overviews/findings with their reviewed revision and limits, even when freshness is
 unknown or newer code exists; say that the analysis comes from the queue. Focused
-source reads answer follow-ups without starting another review. Explicit queue
-updates own discovery and freshness work; ordinary discussion does not rerun bots.
+source reads answer follow-ups without starting another review. On opening a PR
+discussion, follow the queue's cheap, single-PR freshness check. Show the saved
+review and summarize unreviewed changes if stale; ask before rerunning/updating
+bots. Unknown freshness must be labeled. Explicit queue updates own discovery;
+ordinary discussion does not rerun bots without authorization.
 
 Join existing preparation rather than duplicate it. For a PR cache miss, follow
 the queue's single-PR preparation/save workflow, preserving an explicit overview-only

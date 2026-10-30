@@ -89,11 +89,22 @@ are usable even with partial/missing metadata; say which revision and roles they
 cover. Check live job records before scheduling missing work. Do not make a cached
 discussion wait for migration, completeness checks or a comparison helper.
 
-For an explicitly requested update, compare actual merge-base/head contents with
-the saved comparison using read-only Git views. Include modes and exclude unstaged
-edits from an index target. Different commits with identical trees match. Changed
-source/context/rules gets a freshness note; missing objects leave it unverified.
-These observations do not start work during ordinary discussion.
+At the start of a PR discussion, cheaply compare that PR's current head/actual
+merge base with the saved source using metadata and read-only Git views. Reuse
+local objects and tree IDs; fetch only missing comparison data. Include modes and
+exclude unstaged edits from an index target. Different commits with identical
+source/context trees remain covered. Note changed relevant rules separately.
+
+If changed, show the saved review and a brief unreviewed delta: changed commits,
+files/behavior and touched prior-finding locations. Distinguish PR changes from
+base-context changes, without reevaluating correctness or claiming fixes. Ask once
+whether to rerun/update this PR, then wait for authorization; no bots run merely
+because freshness changed. Missing objects/metadata mean unverified freshness,
+not a fresh review or an automatic rerun. If an update already exists, join it.
+
+Keep recorded base/head, reports and notes intact while summarizing the delta.
+Only an authorized rerun publishes a new reviewed comparison. A cheap status/delta
+note must not overwrite the old review's findings or mark the newer code reviewed.
 
 The existing `scripts/check_review.py` is a legacy comparison tool with older
 completion gates. It is not part of this workflow and must not gate report reuse.
