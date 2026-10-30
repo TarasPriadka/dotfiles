@@ -2,7 +2,9 @@
 name: pr-review-queue
 description: >
   Batch full PR reviews, explanations, design critiques, and relevant checks for
-  later discussion. Save their results in the repository's shared local queue.
+  later discussion. Discover open PRs requesting the user's review when asked to
+  prepare PRs for their review without an explicit selection. Save results in
+  the repository's shared local queue.
   Also use before reviewing or explaining queued PRs or staged changes: reuse a
   matching prepared review instead of launching reviewers again. Refresh changed
   conclusions when needed or rerun when explicitly requested.
@@ -17,8 +19,9 @@ own their analysis methods. A completed review is separate from human approval.
 
 ## Choose the operation first
 
-- **Prepare a batch:** resolve the supplied PRs or author/assignment selection,
-  then complete the reviews and applicable checks below. An explicit queue
+- **Prepare a batch:** resolve the supplied PRs or author/assignment selection.
+  With no explicit selection, discover the user's review requests as described
+  below. Reuse matching preparation and complete missing or affected checks. A queue
   request authorizes local artifacts, not GitHub publication or source edits.
   Keep publication invitations from individual skills out of batch preparation;
   return the saved results unless the user asks to publish.
@@ -37,6 +40,36 @@ them. Do not backfill unrelated PRs or start a new batch during discussion.
 
 Read [storage.md](storage.md) before writing or matching entries, and
 [examples.md](examples.md) for refresh, staged-work, and migration scenarios.
+
+## Discover PRs requesting the user's review
+
+Treat "prepare PRs for my review" and "refresh my review requests" as discovery
+and preparation requests. Without an explicit selection, identify the authenticated
+GitHub user and the current repository from its remote, then find every open PR
+in that repository currently requesting that user's review. An explicit repository,
+organization, or PR selection overrides this default. Do not ask the user to supply
+PR numbers that the connected service can discover. If identity or scope cannot
+be established, resolve that missing information before claiming discovery is complete.
+
+Use the available GitHub tools or CLI and follow every result page. If search or
+access limits prevent a complete result, report the uncovered scope; do not present
+a partial list or a failed query as all requests or as an empty queue. Review
+requests are the selection criterion; authorship, assignment, and mentions alone
+do not add PRs unless the user asks for that selection.
+
+A fresh discovery request authorizes adding all matching PRs, including ones
+removed from an earlier queue. Add newly found entries, check existing comparisons
+before launching reviewers, reuse matching preparation, refresh affected results,
+and finish incomplete checks. Repeat discovery on each such request so new review
+requests are included. Keep preparation local under the existing publication rules.
+
+After complete discovery, put the current matches first in the index in useful
+stack order. Keep saved entries outside that selection separately, preserving their
+reports and notes; a PR merging, closing, or losing its review request does not
+remove its entry. Report how many PRs matched and their preparation readiness. An
+empty successful result means no current review requests in the resolved scope.
+"Show my queue" remains a local read, and refreshing saved reviews alone does not
+implicitly discover or add PRs.
 
 ## Prepare reviews, not just explanations
 

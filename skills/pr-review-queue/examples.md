@@ -1,5 +1,30 @@
 # Queue scenarios
 
+## Discover my review requests
+
+"Prepare PRs for my review."
+
+Identify the authenticated user and current repository. Retrieve every page of open
+PRs requesting that user's review; do not ask for their numbers. Suppose #123 is
+new, #124 has matching preparation, and #125 has changed. Prepare #123, reuse #124,
+and refresh the affected results for #125. Save the current matches first in the
+index and report readiness. Do not post comments or edit PR source.
+
+Later: "Prepare PRs for my review again."
+
+Discover the selection again. Add new requests and reconcile current comparisons.
+If #123 has merged or no longer requests review, retain its notes and reports among
+other saved entries. If a previously deleted PR is still requested, this fresh
+discovery request authorizes adding it again. A plain "show my queue" uses local
+files and the last known grouping without querying GitHub. If discovery fails or
+is truncated, report the limitation and preserve existing entries and grouping.
+
+"Prepare my review requests across organization example-org."
+
+Use the explicit organization scope rather than the current repository, paginate
+all results, and keep full forge/repository identities for entries. Assignment or
+mentions alone do not select additional PRs.
+
 ## Batch first, discuss later
 
 "Prepare these eight PRs so I can review them tomorrow."
@@ -65,7 +90,8 @@ review exists in the current session, import it instead of repeating it.
 
 A user deletes an entry or clears the queue. Do not restore it from the index,
 conversation, or a pending worker result. Adding that PR again requires a new
-explicit addition. Linked worktrees always share the main checkout's queue.
+explicit addition, which can be a fresh review-request discovery request. Linked
+worktrees always share the main checkout's queue.
 
 ## Check this workflow
 

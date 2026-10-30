@@ -32,11 +32,19 @@ individual code reviewers' reports under labeled sections of `code-review.md`.
 Save additional specialist reports under `checks/` when run. A short reason for
 not applying a design/scope check is sufficient; no empty report template is needed.
 
-Directories are membership; the index is derived. Only explicit additions create
-entries. A refresh, worker completion, or old index must not recreate an entry the
-user deleted. Before completing a worker result, verify the entry still exists
-and belongs to that preparation. Do not delete entries merely because a PR merged.
-Keep only current generated reports, with no automatic history or global store.
+Directories are membership; the index is derived. Explicit additions include the
+selection authorized by a fresh review-request discovery request. Such a request
+can add a previously deleted PR again when it still matches. A refresh of saved
+reviews, worker completion, or old index must not recreate an entry the user deleted.
+Before completing a worker result, verify the entry still exists and belongs to
+that preparation. Do not delete entries merely because a PR merged.
+
+After discovery, group current review requests separately from other saved entries
+in the index. A local show preserves that last known grouping without claiming it
+is live GitHub state. Discovery failure must not mark existing entries as no longer
+requested. Keep selection information out of the code-review completion record;
+it does not change whether a prepared comparison is covered. Keep only current
+generated reports, with no automatic history or global store.
 
 ## Small completion record
 
