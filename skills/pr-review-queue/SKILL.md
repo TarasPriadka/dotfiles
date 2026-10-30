@@ -1,7 +1,8 @@
 ---
 name: pr-review-queue
 description: >
-  Prepare and cache code reviews and PR overviews for later discussion. Use for
+  Prepare and cache code reviews, PR overviews, and design/split assessments for
+  later discussion. Use for
   explicit discovery/background queue updates, and before discussing or reviewing
   a PR: use saved analysis first, join existing work, or prepare and save a missing
   PR. Check freshness and summarize later changes without rerunning bots; ask before
@@ -77,21 +78,49 @@ invent a forge identity for unrelated local-only work.
 
 ## Code analysis only
 
-Default jobs are a PR overview and the repository's review bots. In Gimlet, use
+Default jobs are a PR overview, the repository's review bots, and one combined
+design-and-scope job described below. In Gimlet, use
 `pr-overview` and the informed, blind and ownership roles from `gml-review`, passing
-review criteria unchanged. This queue controls orchestration: overview and review
-jobs run independently, outputs are saved locally, and publication is not prompted.
+review criteria unchanged. This queue controls orchestration: overview, review
+and design-and-scope jobs run independently, outputs are saved locally, and
+publication is not prompted.
 
 Do not run builds, tests, benchmarks, lint, deployments or PR source edits during
 preparation/discussion. Existing CI can be recorded if already available; fetching
 it is optional and never gates a result. Bots may suggest checks. Execute checks
 only when the user separately requests them.
 
-The coordinator schedules, saves and consolidates. It does not conduct a fourth
-review, launch extra design/split/reader bots, audit full-file reading, or reopen
-finished workers for completeness passes. Preserve supported findings, disagreements
+The coordinator schedules, saves and consolidates. It does not add its own review
+pass, launch additional bots beyond the configured roles, audit full-file reading,
+or reopen finished workers for completeness passes. Preserve supported findings, disagreements
 and coverage limits. A returned limited analysis is a finished job; a crashed or
 missing bot is failed. Do not turn missing evidence into a claim of full coverage.
+
+## Design and PR scope
+
+Run one independent `design-and-scope` job alongside the overview/review jobs for
+the same captured comparison. Give it PR intent, source and relevant stack context;
+it does not wait for or consume other bots' reports. Use `design-challenge` to
+assess consequential assumptions, ownership and complexity, and `identify-pr-splits`
+to assess cohesive review boundaries. The job performs both methods itself without
+spawning another set of bots. If a skill is unavailable, record that limitation.
+
+Save `design-and-scope.md` and surface its recommendation in a **Design and PR
+scope** section of `review.md`, with a link to the full assessment:
+
+- Explain any supported design concern through a concrete scenario, source links,
+  and a recommendation; distinguish defects, unresolved assumptions and proposals.
+- Recommend keeping the PR together or propose smaller PRs. For each proposed
+  split, give title/purpose, affected files or hunks, dependencies/order and
+  suggested validation. Keep behavior and its tests together, account for the
+  entire diff, and reason about usable intermediate states without executing code.
+- Name any action worth taking. A cohesive small PR can simply say why no design
+  change or split is needed; do not manufacture concerns or split by line count.
+
+This is advice only: no branch changes, fixes, PR creation, builds or tests. The
+section is reusable in later discussion under the same freshness/permission rules.
+Older entries missing it remain useful; do not rerun their existing bots. Fill the
+missing role during an explicit update, or offer to add it when discussing the PR.
 
 ## Deliver
 

@@ -6,7 +6,8 @@
 
 Discover all review requests, check saved entries for merged/closed PRs, capture
 revisions once and reuse unchanged results. Confirm a real runner; persist its
-handle/manifest. Fill slots with independent overview/review jobs, save results as
+handle/manifest. Fill slots with independent overview/review/design-and-scope jobs,
+save results as
 they arrive and return the runner/index link. No PR builds/tests. Without a capable
 runner, leave a pending manifest and explain the missing capability; do not keep
 the foreground conversation waiting as a substitute for background execution.
@@ -22,13 +23,13 @@ useful decisions go into notes. No unrelated discovery or whole-queue refresh.
 ## Missing entry or work already running
 
 "Review #456" has neither an entry nor live work: prepare only #456, save its
-overview/reviews and discuss them. Explicit overview-only requests keep that scope.
+analysis outputs and discuss them. Explicit overview-only requests keep that scope.
 If #456 is already running, join/prioritize it without a duplicate. Use finished
 outputs with limits, or discuss an older saved snapshot while its update continues.
 
 ## Parallelism and stopping
 
-Nine PRs produce 36 jobs with three available slots. Keep slots full; each
+Nine PRs produce 45 jobs with three available slots. Keep slots full; each
 completion dispatches another eligible PR/role immediately. No overview dependency,
 whole-role serial loop, nested-coordinator wait or slowest-PR publication barrier.
 Runtime is bounded by actual capacity/bot duration plus small coordination overhead.
@@ -67,3 +68,17 @@ outputs publish per PR, cached discussion starts no bots, live work is joined,
 merged entries are pruned without late resurrection, and changed heads do not
 restart the run. Also check that an unavailable runner is reported honestly.
 Use simulated outputs, not real PR reviews or builds, to validate the instructions.
+
+## Design and PR scope
+
+The fifth job independently applies design-challenge and identify-pr-splits to the
+captured comparison. For a cohesive validation fix with its tests, recommend keeping
+one PR and explain the boundary. For independent behavior changes mixed with a
+refactor/activation, propose source-backed boundaries and their dependency order,
+keeping each behavior's tests with it and suggesting checks without running them.
+Save the assessment once and show its recommendation in the main review section.
+No extra nested bots or branch/PR mutations are needed.
+
+Later, "Could this PR be split?" uses the saved assessment and its freshness note.
+An older entry without it still serves its existing reviews; offer to add only
+the missing design-and-scope job instead of restarting the completed bots.

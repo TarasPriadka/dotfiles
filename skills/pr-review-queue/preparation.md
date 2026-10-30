@@ -30,9 +30,11 @@ a capable runner, save a pending manifest and report the missing capability.
 ## Keep slots occupied
 
 Use a flat queue of `(PR, comparison, bot role)` tasks, each with its own context.
-In Gimlet: overview, informed, blind and ownership. Informed gets intent/description;
+In Gimlet: overview, informed, blind, ownership and design-and-scope. Informed and
+design-and-scope get intent/description;
 blind and ownership receive only comparison, source and repository rules. Withhold
-overviews/prior findings from blind roles. Overview runs alongside reviews.
+overviews/prior findings from blind roles. Overview and design-and-scope run
+alongside reviews; the latter combines both design/split methods in one job.
 
 - Fill available slots immediately; each completion dispatches the next eligible
   task without waiting for siblings, another PR or an entire batch stage.
@@ -49,7 +51,8 @@ overviews/prior findings from blind roles. Overview runs alongside reviews.
   ones. An explicit full rerun creates a new attempt.
 
 Save every output immediately. Publish overviews/partial findings as available;
-consolidate a PR when its own review jobs finish, without waiting for other PRs.
+consolidate each PR's finished review/design-and-scope outputs without waiting for
+other PRs. Publish the overview and available findings while other roles run.
 Failed/cancelled tasks are terminal: a partial run can finish without retrying them.
 Consolidation deduplicates and records disagreements/limits; it does not trigger
 another investigation or regenerate completed bot outputs.

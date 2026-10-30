@@ -15,6 +15,7 @@ Namespace entries by full forge/repository/PR identity.
   github.com/owner/repo/123/
     overview.md
     review.md
+    design-and-scope.md
     reviewers/informed.md
     reviewers/blind.md
     reviewers/ownership.md
@@ -23,7 +24,9 @@ Namespace entries by full forge/repository/PR identity.
 ```
 
 Overview explains need, before/after behavior and scope. Review contains findings,
-source links and limits; individual reports retain factual evidence/lifecycle
+source links, limits and the Design and PR scope recommendation. `design-and-scope.md`
+holds the design assessment and proposed PR boundaries, or reasons to keep the PR
+together. Individual reports retain factual evidence/lifecycle
 traces, not private reasoning transcripts. Notes preserve discussion decisions.
 Existing combined `review.md`/`checks/code-review.md` remains usable without migration.
 
@@ -35,12 +38,13 @@ Record the captured comparison and jobs actually requested:
 {
   "base": "reviewed merge-base SHA",
   "head": "reviewed head SHA",
-  "expected_jobs": ["overview", "informed", "blind", "ownership"],
+  "expected_jobs": ["overview", "informed", "blind", "ownership", "design-and-scope"],
   "jobs": {
     "overview": {"status": "complete", "report": "overview.md"},
     "informed": {"status": "complete", "report": "reviewers/informed.md"},
     "blind": {"status": "failed", "error": "worker exited without a report"},
-    "ownership": {"status": "complete", "report": "reviewers/ownership.md"}
+    "ownership": {"status": "complete", "report": "reviewers/ownership.md"},
+    "design-and-scope": {"status": "complete", "report": "design-and-scope.md"}
   },
   "review_rules": {"REVIEW.md": "sha256 of reviewed instructions"},
   "files": {"overview.md": "sha256", "review.md": "sha256"}
@@ -112,3 +116,6 @@ completion gates. It is not part of this workflow and must not gate report reuse
 Older `checks` records and explanation-only entries stay readable. Missing new
 schema fields do not justify redoing saved analysis or inventing prior bot reports.
 Preserve old files/limits; migrate only when useful work requires an entry update.
+An older entry lacking design-and-scope is not a reason to rerun its overview or
+reviewers. Reuse known existing assessments; otherwise label that role unprepared
+and add only the missing job in an authorized update.
