@@ -79,6 +79,33 @@ back into an existing queue entry. Batch preparation completes reviews and
 applicable checks ahead of our discussion; queue artifacts remain local unless
 I ask to publish them.
 
+## Track and retire temporary worktrees
+
+When creating or reusing a temporary worktree, record its absolute path, purpose
+or PR, last-used date, and the condition for retiring it. Reuse the review-queue
+entry or task record. Keep the record in the main checkout, outside the temporary
+worktree; if none exists, use a small local
+`.agent-work/<task>/resources.md`. Keep these records uncommitted.
+
+Update the record when reusing the worktree and at completion or handoff. State
+whether it is still needed and why, or is a cleanup candidate; link any results
+that must survive removal. Save useful review results outside the temporary
+worktree before retiring it. An interrupted task remains unresolved, not finished.
+
+You may retire temporary worktrees you created for the current task once their
+retention conditions are met. Before removal, verify that no other agent or
+process still uses the worktree, that it has no local changes (including untracked
+or ignored files), and that its commits are preserved by a branch or remote ref.
+Use `git worktree remove` without force; preserve branches and never discard local
+files to make removal succeed. Mark the record removed only after verifying the
+result. Retain anything uncertain and record the reason.
+
+For later cleanup requests, reconcile these records with `git worktree list`
+and the actual files before acting within the requested scope. Worktrees without
+records are candidates to investigate, not disposable by default. Age or a missing
+session alone does not establish that work is abandoned. Respect project cleanup
+rules; this instruction does not authorize deleting unrelated files or caches.
+
 ## Finish the assignment
 
 Establish both that the result works and that it satisfies the entrusted
