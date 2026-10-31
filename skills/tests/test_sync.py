@@ -29,6 +29,9 @@ class SyncTest(unittest.TestCase):
     def make_archive(self, version, omit=None, extras=()):
         files = {
             "agents/AGENTS.md": f"Guide {version}\n",
+            "agents/refinement.py": (SKILLS_ROOT.parent / "agents/refinement.py").read_text(),
+            "agents/dotfiles-refinement": (SKILLS_ROOT.parent / "agents/dotfiles-refinement").read_text(),
+            "skills/sync.sh": SYNC.read_text(),
             "skills/engineering-work/SKILL.md": f"Workflow {version}\n",
             "skills/engineering-work/references/work-record.md": f"Record {version}\n",
             "skills/engineering-work/references/steering.md": f"Steering {version}\n",
@@ -111,7 +114,8 @@ class SyncTest(unittest.TestCase):
         previous = (self.cache / "current").resolve()
         for missing in ("agents/AGENTS.md", "skills/engineering-work/SKILL.md",
                         "skills/engineering-work/references/work-record.md",
-                        "skills/engineering-work/references/steering.md"):
+                        "skills/engineering-work/references/steering.md", "agents/refinement.py",
+                        "agents/dotfiles-refinement", "skills/sync.sh"):
             with self.subTest(missing=missing):
                 self.make_archive("v2", omit=missing)
                 self.run_sync(expected=1)
@@ -168,6 +172,42 @@ class SyncTest(unittest.TestCase):
         self.assertIn("Skipping", result.stderr)
         self.assertEqual((custom / "SKILL.md").read_text(), "Personal writing")
         self.assertEqual(self.guide.read_text(), "Guide v1\n")
+
+    def test_handoff_hook_installs_and_disable_survives_updates(self):
+        self.run_sync()
+        launcher = self.home / ".local/bin/dotfiles-refinement"
+        self.assertTrue(launcher.is_symlink())
+        hooks = self.home / ".codex/hooks.json"
+        import json
+        configured = json.loads(hooks.read_text())["hooks"]
+        self.assertEqual(set(configured), {"UserPromptSubmit", "Stop"})
+        env = dict(os.environ, DOTFILES_SKILLS_HOME=str(self.home),
+                   CODEX_THREAD_ID="dotfiles-port-test", TMPDIR=str(self.root))
+        def event(name):
+            command = configured[name][0]["hooks"][0]["command"]
+            result = subprocess.run(command, shell=True, env=env, text=True,
+                                    input=json.dumps({"hook_event_name": name,
+                                                      "session_id":"dotfiles-port-test", "turn_id":"request-a",
+                                                      "stop_hook_active":False}),
+                                    capture_output=True, check=True)
+            return json.loads(result.stdout)
+        event("UserPromptSubmit")
+        lock = self.cache / "sync.lock"
+        lock.chmod(0o400)
+        try:
+            result = subprocess.run([str(launcher), "handoff", "--task", "Finish verified implementation"],
+                                    env=env, text=True, capture_output=True, check=True)
+            self.assertIn("armed", result.stdout)
+        finally:
+            lock.chmod(0o600)
+        self.assertEqual(event("Stop")["decision"], "block")
+        self.assertEqual(event("Stop"), {})
+        subprocess.run([str(launcher), "disable"], env=env, capture_output=True, check=True)
+        self.make_archive("v2")
+        self.run_sync()
+        self.assertEqual(json.loads(hooks.read_text())["hooks"], {})
+        self.assertEqual(self.guide.read_text(), "Guide v2\n")
+        self.assertEqual((self.cache / "archive-url").read_text().strip(), self.archive.as_uri())
 
     def test_published_installer_bootstraps_framework_and_timer(self):
         raw = self.root / "raw/skills"

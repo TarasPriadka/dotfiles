@@ -37,6 +37,14 @@ directory; the location is retained for future timer runs. On first normal insta
 `CODEX_HOME` is honored if there is no saved location. `DOTFILES_SKILLS_HOME` is a
 test-home override; it does not redirect a normally launched Codex session.
 
+The installer and updater register the engineering handoff hook together with
+the release. Start Codex and review/trust the handlers in `/hooks`. The workflow
+registers a handoff only after an owned end-to-end implementation is ready;
+reviews, explanations, maintenance, narrow direct requests and blocked work are
+excluded. New input cancels pending handoffs. `dotfiles-refinement disable` and
+`enable` control it persistently; engineers need no per-task commands. The hook
+requests about two minutes of effort but only enforces the one-nudge limit.
+
 Start a fresh Codex session in your project. To check discovery without confusing
 file availability with actual loading, ask:
 

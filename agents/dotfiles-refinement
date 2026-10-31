@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+user_home="${DOTFILES_SKILLS_HOME:-$HOME}"
+cache_dir="$user_home/.local/share/dotfiles-skills"
+if [ ! -f "$cache_dir/codex-home" ]; then
+    echo "Install the dotfiles workflow first with skills/install.sh." >&2
+    exit 1
+fi
+IFS= read -r codex_home < "$cache_dir/codex-home"
+
+# Only configuration changes need to write to the managed home. Model-side
+# handoff/skip/status commands must also work in a workspace sandbox.
+case "${1:-}" in
+    enable|disable)
+        exec 9> "$cache_dir/sync.lock"
+        flock 9
+        python3 "$cache_dir/current/refinement.py" "$@" --codex-home "$codex_home"
+        if [ "$1" = disable ]; then
+            touch "$cache_dir/refinement-disabled"
+        else
+            rm -f -- "$cache_dir/refinement-disabled"
+        fi
+        ;;
+    *) exec python3 "$cache_dir/current/refinement.py" "$@" --codex-home "$codex_home" ;;
+esac

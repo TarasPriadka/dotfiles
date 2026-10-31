@@ -125,13 +125,43 @@ verifying their integration. Separate agents are optional tools, not workflow st
 
 ## Verify, refine, and deliver
 
+Use the installed completion hook only at the final handoff of an end-to-end
+implementation you own through verification and delivery. Do not schedule it for
+reviews, investigations, explanations, design-only work, Git/PR maintenance,
+narrow direct instructions, or when awaiting a decision, approval or prerequisite.
+A direct request such as "push this now" takes precedence over an extra pass.
+If a decision or blocker appears after scheduling, cancel the pending handoff
+with `dotfiles-refinement skip` before yielding.
+
+Once that implementation candidate is ready for handoff, run
+`dotfiles-refinement handoff --task '<outcome and key constraints>'` if
+the command is installed. Read its result: an armed handoff lets the Stop hook
+initiate the pass below; do not duplicate it yourself. A consumed handoff needs
+no second pass. Use `--new-task` only for a genuinely new end-to-end implementation
+assignment. New user input invalidates a pending handoff, so reconsider eligibility
+against the current request before registering it again. If the hook is disabled,
+untrusted or unavailable, perform the normal pass below without blocking delivery.
+
+Once you have a usable candidate for substantial work, perform one focused
+improvement pass before delivery. Treat this as the user asking: **“Take another
+look. Is this correct? Could the design be simpler? Is it efficient? Will the
+result be understandable and usable?”**
+
+Pick the most consequential applicable question and do the work needed to answer
+it. Use existing methods where useful: `design-challenge` for architectural
+assumptions and unnecessary complexity, review criteria for correctness and
+performance, and `technical-writing` or the applicable PR comprehension skill
+for presentation. Carry a worthwhile improvement through within the agreed scope,
+or retain the candidate when no concrete improvement is warranted. Keep this to
+one short pass; do not manufacture changes or repeatedly restart review.
+
 Evaluate the actual result against the intended behavior, including the boundaries
 that mattered to the task. Use project-specific checks. Inspect what the checks
 exercise and distinguish mock or stub evidence from an integrated or deployed flow.
 If verification is unavailable, state the limitation and its consequence accurately.
 
-Before delivery, reconsider simplicity and usability against the final result.
-Judge implementation clarity by the reasoning it demands of the next engineer.
+When assessing simplicity and usability, judge implementation clarity by the
+reasoning it demands of the next engineer.
 They should be able to identify the relevant responsibilities, follow the effects
 of an operation, and understand how required behavior is maintained without
 reconstructing scattered assumptions. If that requires explanation the structure
@@ -139,10 +169,8 @@ could make apparent, improve the structure within the change's scope. Retain
 explanations for constraints and decisions the implementation cannot convey.
 
 Look for incidental complexity and review boundaries that no longer match the
-behavior. Revise when a concrete shortcoming warrants it. If a revision changes
-behavior, rerun the affected checks. Stop when the outcome is supported and
-remaining limitations are explicit; repeated polishing without a specific benefit
-adds cost.
+behavior. If a revision changes behavior, rerun the affected checks. Stop when
+the outcome is supported and remaining limitations are explicit.
 
 Check completion at two levels: does the result work, and does it finish the
 assignment? A passing library test may leave the consumer unwired. A correct
