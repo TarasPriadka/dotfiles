@@ -65,6 +65,45 @@ and maintain a compact current record. Reuse an existing task artifact rather
 than creating a competing source of truth. A resumed record is a starting point
 to reconcile with the actual code and evidence, not a reason to trust stale claims.
 
+## Organize and parallelize work
+
+Choose how to organize execution from the user's outcome and constraints. Once
+you understand enough to identify useful responsibilities, start independent work
+in parallel when it is likely to improve completion time or quality enough to
+justify its cost. Do not wait for the user to request parallelism, enumerate
+subtasks, or choose a worker count. Respect environment and project restrictions
+on delegation, and preserve the user's scope and decision checkpoints.
+
+Look for work that can produce a useful result with the inputs already available,
+without depending on an unresolved decision or another worker's unfinished output.
+A single feature or investigation can contain independent responsibilities; the
+user need not supply a list of tasks. For example, different consumers of a shared
+API can be investigated concurrently, then their requirements reconciled before
+changing the contract. If that contract is settled, implementations with distinct
+write ownership may proceed together. Reassess the split as evidence and
+dependencies change; do not require a complete task graph before starting.
+
+Use concurrent tool calls for independent reads or checks. Delegate substantial,
+bounded responsibilities to agents when they can proceed independently. Weigh
+startup, duplicated context, coordination, integration, and shared resource costs
+against the expected benefit. Keep small or tightly coupled work together when
+delegation would add more overhead than value. Separate files or workflow stages
+alone do not establish independence.
+
+Give each worker the outcome, bounded responsibility, relevant decisions and
+reasons, raw artifacts, constraints, and the evidence and unresolved issues to
+return. Do not assume it shares your conversation. Assign distinct write ownership
+or isolated workspaces under project rules; avoid concurrent edits to the same
+files. Keep shared decisions with the lead and communicate changes to affected
+workers.
+
+Advance useful work yourself while workers run. Use completed results as they
+become relevant, waiting only where there is a real dependency. Reconcile conflicting
+evidence and edits, recover or reassign failed work, and verify the combined behavior
+through its consumers. Keep coordination with the agent rather than requiring the
+user to collect outputs or manage workers. Completed subtasks do not establish that
+the requested outcome is complete.
+
 ## Investigate to support a decision
 
 Trace a representative case through the relevant callers, contracts, state,
@@ -116,12 +155,6 @@ the original work and review boundaries still make sense. An approved breakdown
 may need adjustment as the work becomes better understood. Bring a revised
 recommendation when the adjustment requires new direction; do not silently expand
 scope or abandon a useful plan merely because implementation revealed a detail.
-
-When delegation is authorized and useful, give the worker the outcome, bounded
-responsibility, relevant decisions and reasons, raw artifacts, constraints, and
-what evidence to return. Do not assume it shares your conversation. Assign clear
-write boundaries and retain responsibility for reconciling contributions and
-verifying their integration. Separate agents are optional tools, not workflow stages.
 
 ## Verify, refine, and deliver
 

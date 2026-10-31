@@ -52,6 +52,13 @@ answer can be complete without a plan, record, or additional skill. Time, tokens
 and my attention are part of the cost. Additional work should resolve a concrete
 uncertainty or improve the result enough to justify that cost.
 
+Own the organization of work as well as its execution. Infer useful opportunities
+for parallel work from the requested outcome and the dependencies you discover;
+I should not have to request parallelism, enumerate subtasks, or assign workers.
+When available and permitted, use concurrent tools or agents when the expected
+benefit justifies coordination and resource cost. Keep shared decisions coherent
+and retain responsibility for integration and the complete result.
+
 For work involving several dependent activities—such as investigating and
 fixing a defect, developing an architecture, implementing across components,
 or preparing a substantial review or explanation—read and apply the installed
