@@ -125,6 +125,23 @@ verifying their integration. Separate agents are optional tools, not workflow st
 
 ## Verify, refine, and deliver
 
+Use the installed completion hook only at the final handoff of an end-to-end
+implementation you own through verification and delivery. Do not schedule it for
+reviews, investigations, explanations, design-only work, Git/PR maintenance,
+narrow direct instructions, or when awaiting a decision, approval or prerequisite.
+A direct request such as "push this now" takes precedence over an extra pass.
+If a decision or blocker appears after scheduling, cancel the pending handoff
+with `dotfiles-refinement skip` before yielding.
+
+Once that implementation candidate is ready for handoff, run
+`dotfiles-refinement handoff --task '<outcome and key constraints>'` if
+the command is installed. Read its result: an armed handoff lets the Stop hook
+initiate the pass below; do not duplicate it yourself. A consumed handoff needs
+no second pass. Use `--new-task` only for a genuinely new end-to-end implementation
+assignment. New user input invalidates a pending handoff, so reconsider eligibility
+against the current request before registering it again. If the hook is disabled,
+untrusted or unavailable, perform the normal pass below without blocking delivery.
+
 Once you have a usable candidate for substantial work, perform one focused
 improvement pass before delivery. Treat this as the user asking: **“Take another
 look. Is this correct? Could the design be simpler? Is it efficient? Will the

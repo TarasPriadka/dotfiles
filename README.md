@@ -47,6 +47,18 @@ updater remembers it for subsequent timer runs. `CODEX_HOME` is used on the
 first normal installation when no saved location exists. Restart Codex after
 installing to load the new default guide.
 
+The installer also registers a bounded engineering handoff hook. Start a fresh
+Codex session and review/trust it in `/hooks` once. It requests one brief final
+pass only for owned end-to-end implementation handoffs; reviews, explanations,
+Git maintenance and narrow direct instructions bypass it. New user input cancels
+pending handoffs. The two-minute effort target is advisory, not a hard cap.
+Use `dotfiles-refinement disable` to opt out persistently, or `enable` to restore it.
+
+Rerun the installer once to upgrade an older updater. Subsequent hourly updates
+include the hook and updater itself along with the guide and skills. A custom
+`DOTFILES_SKILLS_ARCHIVE_URL` is remembered for future updates, allowing a draft
+branch to be tried without reverting to main on the next timer run.
+
 See [the framework guide](agents/README.md) for development and evaluation.
 
 ## Terminal programs
